@@ -9,20 +9,20 @@ function MazeBase:__init(opts,vocab)
 	--vocab:
 
 	self.map = MazeMap(opts)
-	self.visibility = opts.visibility or 1 --???
-	self.max_attributes = opts.max_attributes --???
-	self.vocab = vocab --???
-	self.t = 0  --???
-	self.costs = {} --???
+	self.visibility = opts.visibility or 1 --agent's visibility
+	self.max_attributes = opts.max_attributes --max num of attr of an item
+	self.vocab = vocab -- string -> int
+	self.t = 0  --time step, see MazeBase:update()
+	self.costs = {} --different sources of costs/reward, see MazeBase:get_reward(is_last)
 	self.push_action = opts.push_action --???
 	self.crumb_action = opts.crumb_action --???
 	self.flag_visited = opts.flag_visited --???
 	self.enable_boundary = opts.enable_boundary
 	self.enable_corners = opts.enable_corners --???
 
-	self.items={} --???
-	self.items_bytype = {} --???
-	self.items_byname ={} --???
+	self.items={} --all items
+	self.items_bytype = {} --all items indexed by type
+	self.items_byname ={} --all items index by name
 
 	if self.enable_boundary == 1 then
 		self:add_boundary()
@@ -36,8 +36,8 @@ function MazeBase:__init(opts,vocab)
 	self.nagents = opts.nagents or 1 --???
 	self.nblocks = opts.nblocks or 0 --???
 	self.nwater = opts.nwater or 0 --???
-	self.finished = false --???
-	self.finish_by_goal = false --???
+	self.finished = false --see MazeBase:update()
+	self.finish_by_goal = false --see MazeBase:update()
 end
 
 function MazeBase:add_boundary()
@@ -149,4 +149,123 @@ function MazeBase:act(action_id)
 	--self.agent: the current active agent
     self.agent:act(action_id)
 end
+
+function MazeBase:get_reward(is_last) --???is last
+    local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
+    local reward = - self.costs.step --fixed cost each step
+    for i = 1, #items do
+        if items[i].type ~= 'agent' then
+            if items[i].reward then
+                reward  = reward + items[i].reward
+            elseif self.costs[items[i].type] then
+                reward = reward - self.costs[items[i].type]
+            end
+        end
+    end
+    return reward
+end
+
+function MazeBase:update()
+    self.t = self.t + 1
+
+    for i = 1, #self.items do
+        if self.items[i].updateable then
+            self.items[i]:update(self)
+        end
+    end
+
+    if self.finish_by_goal then
+        local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
+        for i = 1, #items do
+            if items[i].type == 'goal' then
+                self.finished = true
+            end
+        end
+    end
+
+end
+
+function MazeBase:is_active()
+    return (not self.finished)
+end
+
+function MazeBase:is_success()
+    return self.finished
+end
+
+
+function MazeBase:to_sentence_item(e, sentence)
+    --make item e a sentence(string->int using vocab) w.r.t. self.agent
+    local s = e:to_sentence(self.agent.loc.y,self.agent.loc.x) --see MazeItem:to_sentence 
+    for i = 1, #s  do   --s is table(array) of strings, #s < max_attributes
+        sentence[i] = self.vocab[s[i]]  --string -> int
+    end
+end
+
+function MazeBase:to_sentence(sentence)
+    --output: sentence
+    --sentence[item_id] is a table(array) of int describing the item
+    local sentence_index = 0
+    local sentence = sentence or torch.Tensor(#self.items, self.max_attributes):fill(self.vocab['nil'])
+
+    for i = 1, #self.items do
+        if not self.items[i].attr._invisible then
+            count = count + 1
+            if count > sentence:size(1) then error('increase memsize!') end
+            self:to_sentence_item(self.items[i],sentence[count])
+        end
+    end
+    return sentence 
+end
+
+--original code from CommNet
+function MazeBase:get_visible_state(data, use_lut)
+    --the agent can see the absolute location of items within visibility
+    --output: data
+    --if not use_lut, then data[y][x] is a [0,1,...,1,,0]-like vector of size #vocab 
+
+    local lut_counter = 0
+    for dy = -self.visibility, self.visibility do
+        for dx = -self.visibility, self.visibility do
+            local y, x
+            if self.use_abs_loc then
+                y = math.ceil(self.map.height / 2) + dy
+                x = math.ceil(self.map.width / 2) + dx
+            else
+                y = self.agent.loc.y + dy
+                x = self.agent.loc.x + dx
+            end
+            if self.map.items[y] and self.map.items[y][x] then
+                for _, e in pairs(self.map.items[y][x]) do
+                    if self.agent == e or (not e.attr._invisible) then
+                        local s = e:to_sentence(0, 0, true) --true means ignore the location info 
+                        if g_opts.batch_size == 1 then
+                            print(self.agent.name, ':', table.concat(s,', '))
+                        end
+                        for i = 1, #s do
+                            if self.agent ~= e and s[i]:sub(1,4) == 'talk' then
+                                -- ignore it
+                            else
+                                if self.vocab[s[i]] == nil then error('not found in dict:' .. s[i]) end
+                                local data_y = dy + self.visibility + 1 --used as index for data, in range [1, 1 + 2*visibility]
+                                local data_x = dx + self.visibility + 1 --used as index for data, in range [1, 1 + 2*visibility]
+                                if use_lut then
+                                    lut_counter = lut_counter + 1
+                                    if lut_counter > data:size(1) then
+                                        error('increase encoder_lut_size!')
+                                    end
+                                    local p = (data_y-1)*(2*self.visibility+1) + data_x
+                                    data[lut_counter] = (p-1)*g_opts.nwords + self.vocab[s[i]]
+                                else
+                                    data[data_y][data_x][self.vocab[s[i]]] = 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 
