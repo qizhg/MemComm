@@ -32,10 +32,10 @@ function MazeBase:__init(opts,vocab)
 		self.costs[i] = j
 	end
 
-	self.ngoals = opts.ngoals or 1 --???
-	self.nagents = opts.nagents or 1 --???
-	self.nblocks = opts.nblocks or 0 --???
-	self.nwater = opts.nwater or 0 --???
+	self.ngoals = opts.ngoals or 1 
+	self.nagents = opts.nagents or 1
+	self.nblocks = opts.nblocks or 0 
+	self.nwater = opts.nwater or 0 
 	self.finished = false --see MazeBase:update()
 	self.finish_by_goal = false --see MazeBase:update()
 end
