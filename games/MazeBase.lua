@@ -1,43 +1,48 @@
+-- Copyright (c) 2016-present, Facebook, Inc.
+-- All rights reserved.
+--
+-- This source code is licensed under the BSD-style license found in the
+-- LICENSE file in the root directory of this source tree. An additional grant
+-- of patent rights can be found in the PATENTS file in the same directory.
+
 paths.dofile('MazeItem.lua')
-paths.dofile('MazeMap.lua')
 paths.dofile('MazeAgent.lua')
+paths.dofile('MazeMap.lua')
 
 local MazeBase = torch.class('MazeBase')
 
-function MazeBase:__init(opts,vocab)
-	--opts:
-	--vocab:
+function MazeBase:__init(opts, vocab)
+    self.map = MazeMap(opts)
+    self.visibility = opts.visibility or 1
+    self.max_attributes = opts.max_attributes
+    self.vocab = vocab
+    self.t = 0
+    self.costs = {}
+    self.push_action = opts.push_action
+    self.crumb_action = opts.crumb_action
+    self.flag_visited = opts.flag_visited
+    self.enable_boundary = opts.enable_boundary
+    self.enable_corners = opts.enable_corners
 
-	self.map = MazeMap(opts)
-	self.visibility = opts.visibility or 1 --agent's visibility
-	self.max_attributes = opts.max_attributes --max num of attr of an item
-	self.vocab = vocab -- string -> int
-	self.t = 0  --time step, see MazeBase:update()
-	self.costs = {} --different sources of costs/reward, see MazeBase:get_reward(is_last)
-	self.push_action = opts.push_action --???
-	self.crumb_action = opts.crumb_action --???
-	self.flag_visited = opts.flag_visited --???
-	self.enable_boundary = opts.enable_boundary
-	self.enable_corners = opts.enable_corners --???
+    -- This list contains EVERYTHING in the game.
+    self.items = {}
+    self.items_bytype = {}
+    self.item_byname = {}
 
-	self.items={} --all items
-	self.items_bytype = {} --all items indexed by type
-	self.items_byname ={} --all items index by name
+    if self.enable_boundary == 1 then
+        self:add_boundary()
+    end
 
-	if self.enable_boundary == 1 then
-		self:add_boundary()
-	end
+    for i, j in pairs(opts.costs) do
+        self.costs[i] = j
+    end
 
-	for i, j in pairs(opts.costs) do --??? why not self.costs =opts.costs
-		self.costs[i] = j
-	end
-
-	self.ngoals = opts.ngoals or 1 
-	self.nagents = opts.nagents or 1
-	self.nblocks = opts.nblocks or 0 
-	self.nwater = opts.nwater or 0 
-	self.finished = false --see MazeBase:update()
-	self.finish_by_goal = false --see MazeBase:update()
+    self.ngoals = opts.ngoals or 1
+    self.nagents = opts.nagents or 1
+    self.nblocks = opts.nblocks or 0
+    self.nwater = opts.nwater or 0
+    self.finished = false
+    self.finish_by_goal = false
 end
 
 function MazeBase:add_boundary()
@@ -51,15 +56,27 @@ function MazeBase:add_boundary()
     end
 end
 
----------add items----------------------
-function MazeBase:place_item(attr, y, x)
-	attr.loc ={y=y,x=x}
-	self:add_item(attr)
+--rename add_prebuilt_item --> add_item
+-- and add_item --> new_item  ?
+function MazeBase:add_prebuilt_item(e)
+    e.id = #self.items+1
+    self.items[#self.items+1] = e
+    if not self.items_bytype[e.type] then
+        self.items_bytype[e.type] = {}
+    end
+    table.insert(self.items_bytype[e.type], e)
+    if e.name then
+        self.item_byname[e.name] = e
+    end
+    if e.loc then
+        self.map:add_item(e)
+    end
+    return e
 end
 
 function MazeBase:add_item(attr)
     local e
-    if attr._factory then --???
+    if attr._factory then
         e = attr._factory(attr,self)
     else
         if attr.type == 'agent' then
@@ -72,47 +89,38 @@ function MazeBase:add_item(attr)
     return e
 end
 
-function MazeBase:add_prebuilt_item(e)
-    e.id = #self.items+1
-    self.items[#self.items+1] = e
-    if not self.items_bytype[e.type] then
-        self.items_bytype[e.type] = {}
-    end
-    table.insert(self.items_bytype[e.type], e)
-    if e.name then
-        self.item_byname[e.name] = e --name is unique
-    end
-    if e.loc then
-        self.map:add_item(e) --add it to the MazeMap
-    end
-    return e
+function MazeBase:place_item(attr, y, x)
+    attr.loc = {y = y, x = x}
+    return self:add_item(attr)
 end
----------end add items----------------------
 
----------remove items----------------------
+function MazeBase:place_item_rand(attr)
+    local y, x = self.map:get_empty_loc()
+    return self:place_item(attr, y, x)
+end
+
 function MazeBase:remove(item, l)
---remove item from table l
-	for i = 1, #l do
-		if l[i]==item then --by reference
-			table.remove(l,i) --remove the reference
-		end
-	end
+    for i = 1, #l do
+        if l[i] == item then
+            table.remove(l, i)
+            break
+        end
+    end
 end
 
 function MazeBase:remove_item(item)
-	self:remove(item, self.items)
-	if item.type then
-		self:remove(item,self.items_bytype[item.type]) --remove the reference
-	end
-	if item.name then
-		self.items_byname[item.name] = nil
-	end
-	if item.loc then
-		self.map:remove_item(item)
-	end
+    if item.loc then
+        self.map:remove_item(item)
+    end
+    if item.type then
+        self:remove(item, self.items_bytype[item.type])
+    end
+    if item.name then
+        self.item_byname[item.name] = nil
+    end
+    self:remove(item, self.items)
 end
 
---original code from CommNet
 function MazeBase:remove_byloc(y, x, t)
     local l = self.map.items[y][x]
     local r = {}
@@ -126,7 +134,6 @@ function MazeBase:remove_byloc(y, x, t)
     end
 end
 
---original code from CommNet
 function MazeBase:remove_bytype(type)
     local l = self.items_bytype[type]
     local r = {}
@@ -138,42 +145,23 @@ function MazeBase:remove_bytype(type)
     end
 end
 
---original code from CommNet
 function MazeBase:remove_byname(name)
     self:remove_item(self.item_byname[name])
 end
----------end remove items----------------------
 
-
-function MazeBase:act(action_id)
-	--self.agent: the current active agent
-    self.agent:act(action_id)
+-- Agents call this function to perform action
+function MazeBase:act(action)
+    self.agent:act(action)
 end
 
-function MazeBase:get_reward(is_last) --???is last
-    local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
-    local reward = - self.costs.step --fixed cost each step
-    for i = 1, #items do
-        if items[i].type ~= 'agent' then
-            if items[i].reward then
-                reward  = reward + items[i].reward
-            elseif self.costs[items[i].type] then
-                reward = reward - self.costs[items[i].type]
-            end
-        end
-    end
-    return reward
-end
-
+-- Update map state after each step
 function MazeBase:update()
     self.t = self.t + 1
-
     for i = 1, #self.items do
         if self.items[i].updateable then
             self.items[i]:update(self)
         end
     end
-
     if self.finish_by_goal then
         local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
         for i = 1, #items do
@@ -182,48 +170,33 @@ function MazeBase:update()
             end
         end
     end
-
 end
-
-function MazeBase:is_active()
-    return (not self.finished)
-end
-
-function MazeBase:is_success()
-    return self.finished
-end
-
 
 function MazeBase:to_sentence_item(e, sentence)
-    --make item e a sentence(string->int using vocab) w.r.t. self.agent
-    local s = e:to_sentence(self.agent.loc.y,self.agent.loc.x) --see MazeItem:to_sentence 
-    for i = 1, #s  do   --s is table(array) of strings, #s < max_attributes
-        sentence[i] = self.vocab[s[i]]  --string -> int
+    local s = e:to_sentence(self.agent.loc.y, self.agent.loc.x)
+    if g_opts.batch_size == 1 then
+        print(self.agent.name, ':', table.concat(s,', '))
+    end
+    for i = 1, #s do
+        sentence[i] = self.vocab[s[i]]
     end
 end
 
+-- Tensor representation that can be feed to a model
 function MazeBase:to_sentence(sentence)
-    --output: sentence
-    --sentence[item_id] is a table(array) of int describing the item
-    local sentence_index = 0
+    local count=0
     local sentence = sentence or torch.Tensor(#self.items, self.max_attributes):fill(self.vocab['nil'])
-
     for i = 1, #self.items do
         if not self.items[i].attr._invisible then
-            count = count + 1
+            count= count + 1
             if count > sentence:size(1) then error('increase memsize!') end
-            self:to_sentence_item(self.items[i],sentence[count])
+            self:to_sentence_item(self.items[i], sentence[count])
         end
     end
-    return sentence 
+    return sentence
 end
 
---original code from CommNet
 function MazeBase:get_visible_state(data, use_lut)
-    --the agent can see the absolute location of items within visibility
-    --output: data
-    --if not use_lut, then data[y][x] is a [0,1,...,1,,0]-like vector of size #vocab 
-
     local lut_counter = 0
     for dy = -self.visibility, self.visibility do
         for dx = -self.visibility, self.visibility do
@@ -238,7 +211,7 @@ function MazeBase:get_visible_state(data, use_lut)
             if self.map.items[y] and self.map.items[y][x] then
                 for _, e in pairs(self.map.items[y][x]) do
                     if self.agent == e or (not e.attr._invisible) then
-                        local s = e:to_sentence(0, 0, true) --true means ignore the location info 
+                        local s = e:to_sentence(0, 0, true)
                         if g_opts.batch_size == 1 then
                             print(self.agent.name, ':', table.concat(s,', '))
                         end
@@ -247,8 +220,8 @@ function MazeBase:get_visible_state(data, use_lut)
                                 -- ignore it
                             else
                                 if self.vocab[s[i]] == nil then error('not found in dict:' .. s[i]) end
-                                local data_y = dy + self.visibility + 1 --used as index for data, in range [1, 1 + 2*visibility]
-                                local data_x = dx + self.visibility + 1 --used as index for data, in range [1, 1 + 2*visibility]
+                                local data_y = dy + self.visibility + 1
+                                local data_x = dx + self.visibility + 1
                                 if use_lut then
                                     lut_counter = lut_counter + 1
                                     if lut_counter > data:size(1) then
@@ -268,4 +241,31 @@ function MazeBase:get_visible_state(data, use_lut)
     end
 end
 
+-- This reward signal is used for REINFORCE learning
+function MazeBase:get_reward(is_last)
+    local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
+    local reward = -self.costs.step
+    for i = 1, #items do
+        if items[i].type ~= 'agent' then
+            if items[i].reward then
+                reward = reward + items[i].reward
+            elseif self.costs[items[i].type] then
+                reward = reward - self.costs[items[i].type]
+            end
+        end
+    end
+    return reward
+end
+
+function MazeBase:is_active()
+    return (not self.finished)
+end
+
+function MazeBase:is_success()
+    if self:is_active() then
+        return false
+    else
+        return true
+    end
+end
 

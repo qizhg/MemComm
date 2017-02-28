@@ -1,45 +1,46 @@
+-- Copyright (c) 2016-present, Facebook, Inc.
+-- All rights reserved.
+--
+-- This source code is licensed under the BSD-style license found in the
+-- LICENSE file in the root directory of this source tree. An additional grant 
+-- of patent rights can be found in the PATENTS file in the same directory.
+
 local Traffic, parent = torch.class('Traffic', 'MazeBase')
 
-function Traffic:__init(opts,vocab)
-	parent.__init(self,opts,vocab)
+function Traffic:__init(opts, vocab)
+    parent.__init(self, opts, vocab)
 
-	self.add_rate = opts.add_rate --rate of a new car coming in
-	self.add_block = opts.add_block --???
-	self.max_agents = opts.max_agents --max number of active cars
-	self.costs.collision = opts.costs.collision
-	--self.action_delay = opts.action_delay --???
+    self.add_rate = opts.add_rate
+    self.add_block = opts.add_block
+    self.max_agents = opts.max_agents
+    self.costs.collision = self.costs.collision
+    self.action_delay = opts.action_delay or 0
 
-	self.source_locs ={}
-	self.dest_locs = {}
-	self.routes = {}
-	self:build_roads() --abstract class
+    self.source_locs = {}
+    self.dest_locs = {}
+    self.routes = {}
+    self:build_roads()
 
-	self.agents = {}
-	self.agents_inactive = {}
-	self.agents_active = {}
-	for i=1,self.nagents do
-		
-		local  agents = self:place_item({type = 'agent',
-			name = 'agent'..i,_ascii = '@'..i, _ind = i},1,1)
-		agent.attr._invisible =true
-		agent.active =false
-		agent.abs_loc_visible = true
-
-		local colors = {'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'}
+    self.agents = {}
+    self.agents_inactive = {}
+    self.agents_active = {}
+    for i = 1, self.nagents do
+        local agent = self:place_item({type = 'agent', 
+            name = 'agent' .. i, _ascii = '@' .. i, _ind = i}, 1, 1)        
+        agent.attr._invisible = true
+        local colors = {'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'}
         agent.attr._ascii_color = { colors[torch.random(#colors)] }
-
-        --actions: gas, break
-        ----define act
-        agent.act = function(self,action_id)
-        	assert(self.active)
-        	MazeAgent.act(self,action_id)
+        agent.abs_loc_visible = true
+        agent.active = false
+        agent.act = function(self, action_id)
+            assert(self.active)
+            MazeAgent.act(self, action_id)
         end
-        ----clear actions
+
         agent.action_names = {}  -- id -> name
         agent.action_ids = {}    -- name -> id
         agent.actions = {}       -- id -> func
         agent.nactions = 0
-
         agent:add_action('gas',
             function(self)
                 assert(self.route)
@@ -58,6 +59,17 @@ function Traffic:__init(opts,vocab)
                 self.attr._ascii_color[2] = 'underline'
             end)
 
+        if self.action_delay > 0 then
+            agent.act = function(self, action_id)
+                if self.action_buffer then
+                    local f = self.actions[self.action_buffer]
+                    f(self)
+                end
+                self.action_buffer = action_id
+                self.attr.action_buffer = self.action_names[action_id]
+            end
+        end
+
         self.agents[i] = agent
         self.agents_inactive[i] = agent
     end
@@ -66,80 +78,61 @@ function Traffic:__init(opts,vocab)
 end
 
 function Traffic:add_agent()
-	--make a new car active from inactive
-	for _,src in pairs(self.source_locs) do
-
-		if #self.agents_active >= self.max_agents then
+    for _, src in pairs(self.source_locs) do
+        if #self.agents_active >= self.max_agents then
             return
         end
-
-        if #self.agents_inactive ==0 then
-        	return
-        end
-
-        if torch.uniform() < self.add_rate then --add a new car 
-
-        	--select an agenr from inactive
-        	local r = torch.random(#self.agents_inactive)
-        	local agent = self.agents_inactive[r]
-        	if self.add_block and #self.map.items[src.y][src.x] > 0 then
-                return --???
+        local ri = src.routes[torch.random(#src.routes)]
+        local route = self.routes[ri]
+        if torch.uniform() < self.add_rate then
+            if #self.agents_inactive == 0 then
+                return
             end
-
-            --remove the agent from inactive list & map
-            table.remove(self.agents_inactive, r)
+            local r = torch.random(#self.agents_inactive)
+            local agent = self.agents_inactive[r]
+            if self.add_block and #self.map.items[src.y][src.x] > 0 then
+                return
+            end
             self.map:remove_item(agent)
-
-            --select a route
-        	local ri = src.routes[torch.random(#src.routes)]
-        	local route = self.routes[ri]
-
-        	--modify the selected agent
-        	agent.loc.y = src.y
-        	agent.loc.x = src.x
-        	agent.active = true
-        	agent.attr._invisible =false
-        	agent.t = 0
-        	agent.route =route
-        	agent.route_pos = 1
-        	agent.attr.route = 'route' .. ri
-
-        	--add the agent into active $ map
-        	self.map:add_item(agent)
-            table.insert(self.agents_active, agent)
-            agent.attr._ascii = '<>' --???
+            agent.loc.y = src.y
+            agent.loc.x = src.x
+            table.remove(self.agents_inactive, r)
+            agent.active = true        
+            agent.attr._invisible = false
+            agent.t = 0
+            agent.route = route
+            agent.route_pos = 1
+            agent.attr.route = 'route' .. ri
+            self.map:add_item(agent)
+            table.insert(self.agents_active, agent)        
+            -- agent.attr._ascii = agent.attr._ind .. ri
+            agent.attr._ascii = '<>'
         end
     end
 end
 
 function Traffic:update()
+    parent.update(self)
 
-	--update the parent:MazeBase
-	parent.update(self)
+    self.success_pass = 0
+    self.ncollision = 0
+    for _, agent in pairs(self.agents) do
+        agent.success_pass = 0
+        agent.ncollision = 0
+    end
+    local t = {}
+    for _, agent in pairs(self.agents_active) do
+        agent.t = agent.t + 1
 
-	--reset success_pass and ncollision
-	self.success_pass = 0
-	self.ncollision = 0
-	for _,agent in pairs(self.agents) do
-		agent.success_pass = 0
-		agent.ncollision = 0
-	end
-
-	--
-	local t = {}
-	for _,agent in pairs(self.agents_active) do
-		agent.t = agent.t + 1
-
-		--check collision
-		if #self.map.items[agent.loc.y][agent.loc.x] > 1 then
-            agent.attr._ascii0 = agent.attr._ascii0 or agent.attr._ascii --???
-            agent.attr._ascii = 'XX' --???
+        if #self.map.items[agent.loc.y][agent.loc.x] > 1 then
+            agent.attr._ascii0 = agent.attr._ascii0 or agent.attr._ascii
+            agent.attr._ascii = 'XX'
             agent.ncollision = agent.ncollision + 0.5
             self.ncollision = self.ncollision + 0.5
             self.ncollision_total = self.ncollision_total + 0.5
         end
 
-        --check success pass, if pass, the car is turned into inactive
+        local dst = agent.route[#agent.route]
         if agent.loc.y == dst.y and agent.loc.x == dst.x then
             agent.success_pass = agent.success_pass + 1
             self.success_pass = self.success_pass + 1
@@ -154,15 +147,12 @@ function Traffic:update()
             table.insert(t, agent)
         end
     end
-
-    self.agents_active=t
+    self.agents_active = t
 
     self:add_agent()
 end
 
-
 function Traffic:get_reward(is_last)
-	--reward of self.agent, the current agent
     local r = 0
     r = r - self.agent.success_pass * self.costs.pass 
     r = r - self.agent.ncollision * self.costs.collision
@@ -173,7 +163,6 @@ end
 function Traffic:is_active()
     return self.agent.active
 end
-
 
 function Traffic:is_success()
     if self.ncollision_total > 0 then

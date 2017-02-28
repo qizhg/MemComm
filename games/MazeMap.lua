@@ -1,44 +1,44 @@
+-- Copyright (c) 2016-present, Facebook, Inc.
+-- All rights reserved.
+--
+-- This source code is licensed under the BSD-style license found in the
+-- LICENSE file in the root directory of this source tree. An additional grant
+-- of patent rights can be found in the PATENTS file in the same directory.
+
 local colors_ok, colors = pcall(require, 'ansicolors')
-
-
 local MazeMap = torch.class('MazeMap')
 
 function MazeMap:__init(opts)
-	self.height = opts.map_height or 10
-	self.width = opts.map_width or 10
+    self.height = opts.map_height or 10
+    self.width = opts.map_width or 10
 
-	--items by (y,x) location
-	self.items = {}
-	for y = 1, self.height do
-		self.items[y] = {}
-		for x = 1,self.width do
-			self.items[y][x] = {}
-		end
-	end
+    -- Items by x,y location
+    self.items = {}
+    for y = 1, self.height do
+        self.items[y] = {}
+        for x = 1, self.width do
+            self.items[y][x] = {}
+        end
+    end
 
-	self.visibility_mask = self.Tensor(self.height,self.width)
-	self.visibility_mask:fill(1)
+    self.visibility_mask = torch.Tensor(self.height, self.width)
+    self.visibility_mask:fill(1)
 end
 
 function MazeMap:add_item(item)
-	--item: object of class 'MazeItem'
-	table.insert(self.items[items.loc.y][items.loc.x], item)
+    table.insert(self.items[item.loc.y][item.loc.x], item)
 end
 
 function MazeMap:remove_item(item)
-	--called by:
-	----MazeAgent:add_move_actions
-
-	local items_at_y_x = self.items[items.loc.y][items.loc.x]
-	for i = 1, #items_at_y_x do
-		if items_at_y_x[i].id == item.id then --id is assinged when added to the maze (see MazeBase.lua)
-			table.remove(items_at_y_x,i)
-			break
-		end
-	end
+    local l = self.items[item.loc.y][item.loc.x]
+    for i = 1, #l do
+        if l[i].id == item.id then
+            table.remove(l, i)
+            break
+        end
+    end
 end
 
---original code from CommNet
 function MazeMap:get_empty_loc(fat)
     local fat = fat or 0
     local x, y
@@ -47,7 +47,7 @@ function MazeMap:get_empty_loc(fat)
         x = torch.random(1+fat, self.width-fat)
         local empty = true
         for j, e in pairs(self.items[y][x]) do
-            if not e.attr._immaterial then --??? _immaterial
+            if not e.attr._immaterial then
                 empty = false
             end
         end
@@ -57,25 +57,27 @@ function MazeMap:get_empty_loc(fat)
 end
 
 function MazeMap:is_loc_reachable(y, x)
-	if y<1 or x<1 or y>self.height or x>self.width then
-		return false
-	end
-
-	local res = true
-	for j, e in pairs(self.items[y][x]) do
-		res = res and e:is_reachable()
-	end
-
-	return res
+     if y < 1 or x < 1 then
+        return false
+    elseif y > self.height or x > self.width then
+        return false
+    end
+    local l = self.items[y][x]
+    local is_reachable = true
+    for i = 1, #l do
+        is_reachable = is_reachable and l[i]:is_reachable()
+    end
+    return is_reachable
 end
 
-function MazeMap:is_loc_visible(y,x)
-	if self.visibility_mask[y][x] ==1 then return true
-	else return false 
-	end
+function MazeMap:is_loc_visible(y, x)
+    if self.visibility_mask[y][x] == 1 then
+        return true
+    else
+        return false
+    end
 end
 
---original code from CommNet
 function MazeMap:print_ascii()
     for y = 0, self.height + 1 do
         local line = '|'
