@@ -1,6 +1,7 @@
 
 
 torch.setdefaulttensortype('torch.FloatTensor')
+paths.dofile('utils.lua')
 paths.dofile('games/init.lua')
 
 local cmd = torch.CmdLine()
@@ -17,4 +18,4 @@ g_opts = cmd:parse(arg or {})
 
 g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
-print(g_opts.game) 
+print(g_opts.game)

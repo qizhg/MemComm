@@ -3,6 +3,7 @@
 paths.dofile('MazeBase.lua')
 paths.dofile('OptsHelper.lua')
 paths.dofile('GameFactory.lua')
+paths.dofile('batch.lua')
 
 
 --for traffic games
@@ -124,6 +125,14 @@ function g_init_vocab()
                 vocab_add('ay' .. y .. 'x' .. x)
             end
         end
+    end
+end
+
+function new_game()
+    if g_opts.game == nil or g_opts.game == '' then
+        return g_factory:init_random_game()
+    else
+       return g_factory:init_game(g_opts.game)
     end
 end
 
