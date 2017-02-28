@@ -70,7 +70,7 @@ function MazeMap:is_loc_reachable(y, x)
 end
 
 function MazeMap:is_loc_visible(y,x)
-	if self.visibility_mask[y,x] ==1 then return true
+	if self.visibility_mask[y][x] ==1 then return true
 	else return false 
 	end
 end

@@ -127,11 +127,11 @@ function Traffic:update()
 
 	--
 	local t = {}
-	for _,agent in pairs(self.agents_active)
-		 agent.t = agent.t + 1
+	for _,agent in pairs(self.agents_active) do
+		agent.t = agent.t + 1
 
-		 --check collision
-		 if #self.map.items[agent.loc.y][agent.loc.x] > 1 then
+		--check collision
+		if #self.map.items[agent.loc.y][agent.loc.x] > 1 then
             agent.attr._ascii0 = agent.attr._ascii0 or agent.attr._ascii --???
             agent.attr._ascii = 'XX' --???
             agent.ncollision = agent.ncollision + 0.5
