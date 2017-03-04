@@ -27,7 +27,7 @@ function Traffic:__init(opts, vocab)
     self.nagents = opts.nagents
     for i = 1, self.nagents do
         local agent = self:place_item({type = 'agent', 
-            _name = 'agent' .. i, _ascii = '@' .. i, _ind = i}, 1, 1)        
+            _name = 'agent' .. i, _ascii = '@' .. i, _ind = i}, 1, 1)      
         agent.attr._invisible = true
         local colors = {'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'}
         agent.attr._ascii_color = { colors[torch.random(#colors)] }
@@ -123,10 +123,10 @@ function Traffic:update()
     end
     self.agents_active = t
 
-    self:add_agent()
 end
 
 function Traffic:get_reward(is_last)
+
     local r = 0
     r = r - self.agent.success_pass * self.costs.pass 
     r = r - self.agent.ncollision * self.costs.collision

@@ -13,88 +13,60 @@ function batch_init(size)
     return batch
 end
 
-function batch_input(batch, active, t)
-    if g_opts.encoder_lut then
-        return batch_input_lut(batch, active, t)
-    end
-    active = active:view(#batch, g_opts.nagents)
-    local input = torch.Tensor(#batch, g_opts.nagents, 2*g_opts.visibility+1, 2*g_opts.visibility+1, g_opts.nwords)
-    input:fill(0)
+function batch_active(batch)
+    local active = torch.Tensor(#batch):zero()
     for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            set_current_agent(g, a)
-            if active[i][a] == 1 then
-                g:get_visible_state(input[i][a])
-            end
+        if g:is_active() then
+            active[i] = 1
         end
     end
-    input = input:view(#batch * g_opts.nagents, -1)
+    return active:view(-1)
+end
+
+function batch_obs(batch, active) --return 0-1 vector
+
+    local input = torch.Tensor(#batch, 2*g_opts.visibility+1, 2*g_opts.visibility+1, g_opts.nwords)
+    input:fill(g_vocab['nil'])
+    for i, g in pairs(batch) do
+        if active[i] == 1 then 
+            g:get_visible_state(input[i])
+        end
+    end
+    input = input:view(#batch, -1) --(#batch,in_dim)
     return input
 end
 
-function batch_input_lut(batch, active, t)
-    active = active:view(#batch, g_opts.nagents)
-    local input = torch.Tensor(#batch, g_opts.nagents, g_opts.encoder_lut_size)
-    input:fill(g_opts.encoder_lut_nil)
-    for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            set_current_agent(g, a)
-            if active[i][a] == 1 then
-                g:get_visible_state(input[i][a], true)
-            end
-        end
-    end
-    input = input:view(#batch * g_opts.nagents, -1)
-    return input
-end
 
 function batch_act(batch, action, active)
-    active = active:view(#batch, g_opts.nagents)
-    action = action:view(#batch, g_opts.nagents)
+    --active = active:view(#batch, g_opts.nagents)
     for i, g in pairs(batch) do
         for a = 1, g_opts.nagents do
             set_current_agent(g, a)
-            if active[i][a] == 1 then
+            if active[i] == 1 then
                 g:act(action[i][a])
             end
         end
     end
 end
 
-function batch_reset_comm(batch)
+function batch_update(batch, active)
+    --active = active:view(#batch, g_opts.nagents)
     for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            for b = 1, g_opts.nagents do
-                set_current_agent(g, b)
-                g.agent.attr['talk_' .. a] = nil
-            end
+        if active[i] == 1 then
+            g:update()
         end
     end
 end
 
-function batch_act_comm(batch, action, mask)
-    action = action:view(#batch, g_opts.nagents)
-    batch_reset_comm(batch)
-    for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            for b = 1, g_opts.nagents do
-                if mask[i][a][b] > 0 then
-                    set_current_agent(g, b)
-                    g.agent.attr['talk_' .. a] = 'talk' .. action[i][a]
-                end
-            end
-        end
-    end
-end
 
 function batch_reward(batch, active, is_last)
-    active = active:view(#batch, g_opts.nagents)
-    local reward = torch.Tensor(#batch, g_opts.nagents):zero()
+    --active = active:view(#batch, g_opts.nagents)
+    local reward = torch.Tensor(#batch):zero()
     for i, g in pairs(batch) do
         for a = 1, g_opts.nagents do
             set_current_agent(g, a)
-            if active[i][a] == 1 then
-                reward[i][a] = g:get_reward(is_last)
+            if active[i] == 1 then
+                reward[i] = g:get_reward(is_last)
             end
         end
     end
@@ -114,11 +86,7 @@ function batch_terminal_reward(batch)
     return reward:view(-1)
 end
 
-function batch_update(batch)
-    for i, g in pairs(batch) do
-        g:update()
-    end
-end
+
 
 function batch_active(batch)
     local active = torch.Tensor(#batch, g_opts.nagents):zero()

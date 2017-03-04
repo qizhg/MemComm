@@ -2,31 +2,50 @@
 
 require'optim'
 
-function train_nonbatch()
+function train_batch()
 	---get a new game
-	local game = new_game()
+	local batch = batch_init(g_opts.batch_size)
+
 
 	-- record the episode
+    local active = {}
     local reward = {}
-    local obs = {}
     local action = {}
 
-    --
+
     local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
-    local model_input = torch.Tensor(g_opts.memsize,in_dim):fill(game.vocab['nil'])
+    local obs = torch.Tensor(g_opts.max_steps, #batch, in_dim)
+    obs:fill(g_vocab['nil'])
 
 
-    --play the game
+    --play the game (forward pass)
     for t = 1, g_opts.max_steps do
-    	--get mem
-    	obs[t] = nonbatch_obs(game)
-    	model_input[{{1,-2}}] = model_input[{{2,-1}}]
-    	model_input[-1] = obs[t]:clone()
-    	
-        --get context MQN
+        --get active games
+        active[t] = batch_active(batch)
+    	--get the latest observation
+    	obs[t] = batch_obs(batch,active)
+        --get input
+        local mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
+        mem_input:fill(g_vocab['nil'])
+        local mem_start, mem_end
+        mem_start = math.max(1, t - g_opts.memsize +1)
+        mem_end = t
+        mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        local last_obs = mem_input[1]:clone() --(#batch, in_dim)
+        mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+        
 
+        --forward input to get output = {action_logprob, baseline}
+        local out = g_model:forward({mem_input, last_obs})  --out[1] = action_logprob
+        action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
+        
+        
+        --act & update
+        batch_act(batch, action[t], active)
+        batch_update(batch, active[t])
 
-
+        --get reward
+        reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
 end
 
@@ -36,7 +55,8 @@ function train(N)
 	--batch_size: number of games in a batch 
 	for n = 1, N do
 		for k=1, g_opts.nbatches do
-			train_nonbatch() --get g_paramx, g_paramdx
+            print(k)
+			train_batch() --get g_paramx, g_paramdx
 			g_update_param(g_paramx, g_paramdx)
 		end
 	end

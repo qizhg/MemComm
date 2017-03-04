@@ -3,6 +3,7 @@ torch.manualSeed(45)
 torch.setdefaulttensortype('torch.FloatTensor')
 paths.dofile('util.lua')
 paths.dofile('model.lua')
+paths.dofile('train.lua')
 paths.dofile('games/init.lua')
 
 local cmd = torch.CmdLine()
@@ -34,7 +35,7 @@ cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 1, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 -- for optim
@@ -73,6 +74,7 @@ g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
 g_factory.vocab = g_vocab
 
+
 --game = new_game()
 --print(#game.agents)
 --print(#game.agents_inactive)
@@ -86,4 +88,6 @@ g_factory.vocab = g_vocab
 --print(g_opts.nwords)
 --data:fill(game.vocab['nil'])
 --game:get_visible_state(data)
+
 g_init_model()
+train(1)
