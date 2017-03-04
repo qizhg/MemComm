@@ -8,9 +8,10 @@
 if not g_opts then g_opts = {} end
 
 g_opts.multigames = {}
+g_opts.max_attributes = 5 --?
 
-local mapH = torch.Tensor{14,14,14,14,1}
-local mapW = torch.Tensor{14,14,14,14,1}
+local mapH = torch.Tensor{8,8,8,8,1}
+local mapW = torch.Tensor{8,8,8,8,1}
 
 -------------------
 --some shared StaticOpts
@@ -19,19 +20,14 @@ local sso = {}
 sso.costs = {}
 sso.costs.goal = 0
 sso.costs.step = 0
-sso.costs.pass = 0
-sso.costs.collision = 10
+sso.costs.pass = 1.0
+sso.costs.collision = 0
 sso.costs.wait = 0.01
 ---------------------
-sso.crumb_action = 0
-sso.push_action = 0
-sso.flag_visited = 0
-sso.enable_boundary = 0
-sso.enable_corners = 0
-sso.add_block = false
 sso.visibility = g_opts.visibility
 sso.nagents = g_opts.nagents
 sso.max_agents = g_opts.nagents
+sso.max_attributes = g_opts.max_attributes
 
 -------------------------------------------------------
 local CrossingRangeOpts = {}

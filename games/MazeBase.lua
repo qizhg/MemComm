@@ -18,56 +18,17 @@ function MazeBase:__init(opts, vocab)
     self.vocab = vocab
     self.t = 0
     self.costs = {}
-    self.push_action = opts.push_action
-    self.crumb_action = opts.crumb_action
-    self.flag_visited = opts.flag_visited
-    self.enable_boundary = opts.enable_boundary
-    self.enable_corners = opts.enable_corners
-
-    -- This list contains EVERYTHING in the game.
-    self.items = {}
-    self.items_bytype = {}
-    self.item_byname = {}
-
-    if self.enable_boundary == 1 then
-        self:add_boundary()
-    end
-
     for i, j in pairs(opts.costs) do
         self.costs[i] = j
     end
 
-    self.ngoals = opts.ngoals or 1
-    self.nagents = opts.nagents or 1
-    self.nblocks = opts.nblocks or 0
-    self.nwater = opts.nwater or 0
-    self.finished = false
-    self.finish_by_goal = false
+    -- This list contains EVERYTHING in the game.
+    self.items = {}
 end
 
-function MazeBase:add_boundary()
-    for x = 1, self.map.width do
-        self:place_item({type = 'block'}, 1, x)
-        self:place_item({type = 'block'}, self.map.height, x)
-    end
-    for y = 2, self.map.height-1 do
-        self:place_item({type = 'block'}, y, 1)
-        self:place_item({type = 'block'}, y, self.map.width)
-    end
-end
-
---rename add_prebuilt_item --> add_item
--- and add_item --> new_item  ?
 function MazeBase:add_prebuilt_item(e)
     e.id = #self.items+1
     self.items[#self.items+1] = e
-    if not self.items_bytype[e.type] then
-        self.items_bytype[e.type] = {}
-    end
-    table.insert(self.items_bytype[e.type], e)
-    if e.name then
-        self.item_byname[e.name] = e
-    end
     if e.loc then
         self.map:add_item(e)
     end
@@ -94,11 +55,6 @@ function MazeBase:place_item(attr, y, x)
     return self:add_item(attr)
 end
 
-function MazeBase:place_item_rand(attr)
-    local y, x = self.map:get_empty_loc()
-    return self:place_item(attr, y, x)
-end
-
 function MazeBase:remove(item, l)
     for i = 1, #l do
         if l[i] == item then
@@ -119,34 +75,6 @@ function MazeBase:remove_item(item)
         self.item_byname[item.name] = nil
     end
     self:remove(item, self.items)
-end
-
-function MazeBase:remove_byloc(y, x, t)
-    local l = self.map.items[y][x]
-    local r = {}
-    for i = 1, #l do
-        if l[i].type == t then
-            table.insert(r, l[i])
-        end
-    end
-    for i = 1, #r do
-        self:remove_item(r[i])
-    end
-end
-
-function MazeBase:remove_bytype(type)
-    local l = self.items_bytype[type]
-    local r = {}
-    for i = 1, #l do
-        table.insert(r, l[i])
-    end
-    for i = 1, #r do
-        self:remove_item(r[i])
-    end
-end
-
-function MazeBase:remove_byname(name)
-    self:remove_item(self.item_byname[name])
 end
 
 -- Agents call this function to perform action
@@ -197,42 +125,24 @@ function MazeBase:to_sentence(sentence)
 end
 
 function MazeBase:get_visible_state(data, use_lut)
-    local lut_counter = 0
+
     for dy = -self.visibility, self.visibility do
         for dx = -self.visibility, self.visibility do
             local y, x
-            if self.use_abs_loc then
-                y = math.ceil(self.map.height / 2) + dy
-                x = math.ceil(self.map.width / 2) + dx
-            else
-                y = self.agent.loc.y + dy
-                x = self.agent.loc.x + dx
-            end
+            y = self.agent.loc.y + dy
+            x = self.agent.loc.x + dx
             if self.map.items[y] and self.map.items[y][x] then
                 for _, e in pairs(self.map.items[y][x]) do
                     if self.agent == e or (not e.attr._invisible) then
                         local s = e:to_sentence(0, 0, true)
-                        if g_opts.batch_size == 1 then
-                            print(self.agent.name, ':', table.concat(s,', '))
-                        end
+                        --if g_opts.batch_size == 1 then
+                        --    print(self.agent.name, ':', table.concat(s,', '))
+                        --end
                         for i = 1, #s do
-                            if self.agent ~= e and s[i]:sub(1,4) == 'talk' then
-                                -- ignore it
-                            else
-                                if self.vocab[s[i]] == nil then error('not found in dict:' .. s[i]) end
-                                local data_y = dy + self.visibility + 1
-                                local data_x = dx + self.visibility + 1
-                                if use_lut then
-                                    lut_counter = lut_counter + 1
-                                    if lut_counter > data:size(1) then
-                                        error('increase encoder_lut_size!')
-                                    end
-                                    local p = (data_y-1)*(2*self.visibility+1) + data_x
-                                    data[lut_counter] = (p-1)*g_opts.nwords + self.vocab[s[i]]
-                                else
-                                    data[data_y][data_x][self.vocab[s[i]]] = 1
-                                end
-                            end
+                            if self.vocab[s[i]] == nil then error('not found in dict:' .. s[i]) end
+                            local data_y = dy + self.visibility + 1
+                            local data_x = dx + self.visibility + 1
+                            data[data_y][data_x][self.vocab[s[i]]] = 1
                         end
                     end
                 end

@@ -19,14 +19,6 @@ function MazeAgent:__init(attr, maze)
     self.actions = {}       -- id -> func
     self.nactions = 0
     self:add_move_actions()
-    self:add_toggle_action()
-
-    if maze.crumb_action == 1 then
-        self:add_breadcrumb_action()
-    end
-    if maze.push_action == 1 then
-        self:add_push_actions()
-    end
 end
 
 function MazeAgent:add_action(name, f)
@@ -76,83 +68,6 @@ function MazeAgent:add_move_actions()
     self:add_action('stop',
         function(self)
             -- do nothing
-        end)
-end
-
-function MazeAgent:add_toggle_action()
-    self:add_action('toggle',
-        function(self)
-            local l = self.map.items[self.loc.y][self.loc.x]
-            for _, e in ipairs(l) do
-                if e.type == 'switch' then
-                    if not e.fixed then
-                        local c = e.attr._c
-                        c = (c % e.attr._cn) + 1
-                        e.attr._c = c
-                        e.attr.color = 'color' .. c
-                    end
-                end
-            end
-        end)
-end
-
-function MazeAgent:add_push_actions()
-    self:add_action('push_up',
-        function(self)
-            local y = self.loc.y
-            local x = self.loc.x
-            if self.map:is_loc_reachable(y - 2, x) then
-                for i,j in pairs(self.map.items[y-1][x]) do
-                    if j.pushable then
-                        j.pushed = true
-                        j.agent_y = y
-                        j.agent_x = x
-                    end
-                end
-            end
-        end)
-    self:add_action('push_down',
-        function(self)
-            local y = self.loc.y
-            local x = self.loc.x
-            if self.map:is_loc_reachable(y + 2, x) then
-                for i,j in pairs(self.map.items[y+1][x]) do
-                    if j.pushable then
-                        j.pushed = true
-                        j.agent_y = y
-                        j.agent_x = x
-                    end
-                end
-            end
-        end)
-    self:add_action('push_left',
-        function(self)
-            local y = self.loc.y
-            local x = self.loc.x
-            if self.map:is_loc_reachable(y, x - 2) then
-                for i,j in pairs(self.map.items[y][x-1]) do
-                    if j.pushable then
-                        j.pushed = true
-                        j.agent_y = y
-                        j.agent_x = x
-                    end
-                end
-            end
-        end)
-
-    self:add_action('push_right',
-        function(self)
-            local y = self.loc.y
-            local x = self.loc.x
-            if self.map:is_loc_reachable(y, x + 2) then
-                for i,j in pairs(self.map.items[y][x+1]) do
-                    if j.pushable then
-                        j.pushed = true
-                        j.agent_y = y
-                        j.agent_x = x
-                    end
-                end
-            end
         end)
 end
 

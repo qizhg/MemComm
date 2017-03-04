@@ -1,5 +1,5 @@
 
-
+torch.manualSeed(45)
 torch.setdefaulttensortype('torch.FloatTensor')
 paths.dofile('util.lua')
 paths.dofile('model.lua')
@@ -10,6 +10,7 @@ local cmd = torch.CmdLine()
 cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 50, 'the size of the internal state vector')
+cmd:option('--memsize', 5, 'memorize the last 5 time steps')
 cmd:option('--nonlin', 'tanh', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 cmd:option('--init_hid', 0.1, 'initial value of internal state')
@@ -20,8 +21,8 @@ cmd:option('--unroll', 10, 'unroll steps for recurrent model. 0 means full unrol
 cmd:option('--unroll_freq', 4, 'unroll after every several steps')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
-cmd:option('--nactions', 6, 'the number of agent actions')
-cmd:option('--max_steps', 20, 'force to end the game after this many steps')
+cmd:option('--nactions', 5, 'the number of agent actions')
+cmd:option('--max_steps', 40, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
 cmd:option('--game', '', 'can specify a single game')
 cmd:option('--visibility', 1, 'vision range of agents')
@@ -33,8 +34,8 @@ cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 16, 'size of mini-batch (the number of parallel games) in each thread')
-cmd:option('--nworker', 18, 'the number of threads used for training')
+cmd:option('--batch_size', 1, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 -- for optim
 cmd:option('--momentum', 0, 'momentum for SGD')
@@ -67,18 +68,22 @@ cmd:option('--curriculum_end', 0, 'when to make the game hardest')
 
 g_opts = cmd:parse(arg or {})
 
-if g_opts.model == 'rnn' or g_opts.model == 'lstm' then
-    g_opts.recurrent = true
-    if g_opts.unroll > 0 then
-        assert(g_opts.unroll >= g_opts.unroll_freq)
-    end
-else
-    g_opts.recurrent = false
-    g_opts.unroll = 0
-end
 
 g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
 g_factory.vocab = g_vocab
 
+--game = new_game()
+--print(#game.agents)
+--print(#game.agents_inactive)
+--print(#game.agents_active)
+
+
+--s= game.agent:to_sentence(0, 0, true)
+--print(game.agent.name, ':', table.concat(s,', '))
+
+--data = torch.Tensor(2*g_opts.visibility+1, 2*g_opts.visibility+1, g_opts.nwords)
+--print(g_opts.nwords)
+--data:fill(game.vocab['nil'])
+--game:get_visible_state(data)
 g_init_model()

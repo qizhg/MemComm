@@ -24,9 +24,10 @@ function Traffic:__init(opts, vocab)
     self.agents = {}
     self.agents_inactive = {}
     self.agents_active = {}
+    self.nagents = opts.nagents
     for i = 1, self.nagents do
         local agent = self:place_item({type = 'agent', 
-            name = 'agent' .. i, _ascii = '@' .. i, _ind = i}, 1, 1)        
+            _name = 'agent' .. i, _ascii = '@' .. i, _ind = i}, 1, 1)        
         agent.attr._invisible = true
         local colors = {'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'}
         agent.attr._ascii_color = { colors[torch.random(#colors)] }
@@ -37,78 +38,51 @@ function Traffic:__init(opts, vocab)
             MazeAgent.act(self, action_id)
         end
 
-        agent.action_names = {}  -- id -> name
-        agent.action_ids = {}    -- name -> id
-        agent.actions = {}       -- id -> func
-        agent.nactions = 0
-        agent:add_action('gas',
-            function(self)
-                assert(self.route)
-                self.route_pos = self.route_pos + 1
-                local y = self.route[self.route_pos].y
-                local x = self.route[self.route_pos].x
-                self.map:remove_item(self)
-                assert(math.abs(self.loc.y - y) + math.abs(self.loc.x - x) == 1)
-                self.loc.y = y
-                self.loc.x = x
-                self.map:add_item(self)
-                self.attr._ascii_color[2] = nil
-            end)
-        agent:add_action('brake',
-            function(self)
-                self.attr._ascii_color[2] = 'underline'
-            end)
-
-        if self.action_delay > 0 then
-            agent.act = function(self, action_id)
-                if self.action_buffer then
-                    local f = self.actions[self.action_buffer]
-                    f(self)
-                end
-                self.action_buffer = action_id
-                self.attr.action_buffer = self.action_names[action_id]
-            end
-        end
-
         self.agents[i] = agent
         self.agents_inactive[i] = agent
     end
     self.agent = self.agents[1]
     self.ncollision_total = 0
+    self:add_agent()
 end
 
 function Traffic:add_agent()
-    for _, src in pairs(self.source_locs) do
-        if #self.agents_active >= self.max_agents then
+    
+    if #self.agents_active >= 1 then
+        self.add_rate = 0.0
+    else
+        self.add_rate = 1.0
+    end
+    
+    local src = self.source_locs[torch.random(#self.source_locs)]
+    
+    if #self.agents_active >= self.max_agents then
+        return
+    end
+    local ri = src.routes[torch.random(#src.routes)]
+    local route = self.routes[ri]
+    if torch.uniform() < self.add_rate then
+        if #self.agents_inactive == 0 then
             return
         end
-        local ri = src.routes[torch.random(#src.routes)]
-        local route = self.routes[ri]
-        if torch.uniform() < self.add_rate then
-            if #self.agents_inactive == 0 then
-                return
-            end
-            local r = torch.random(#self.agents_inactive)
-            local agent = self.agents_inactive[r]
-            if self.add_block and #self.map.items[src.y][src.x] > 0 then
-                return
-            end
-            self.map:remove_item(agent)
-            agent.loc.y = src.y
-            agent.loc.x = src.x
-            table.remove(self.agents_inactive, r)
-            agent.active = true        
-            agent.attr._invisible = false
-            agent.t = 0
-            agent.route = route
-            agent.route_pos = 1
-            agent.attr.route = 'route' .. ri
-            self.map:add_item(agent)
-            table.insert(self.agents_active, agent)        
-            -- agent.attr._ascii = agent.attr._ind .. ri
-            agent.attr._ascii = '<>'
-        end
-    end
+        local r = torch.random(#self.agents_inactive)
+        local agent = self.agents_inactive[r]
+        self.map:remove_item(agent)
+        agent.loc.y = src.y
+        agent.loc.x = src.x
+        table.remove(self.agents_inactive, r)
+        agent.active = true
+        agent.attr._invisible = false
+        agent.t = 0
+        agent.route = route
+        agent.route_pos = 1
+        agent.attr.route = 'route' .. ri
+        self.map:add_item(agent)
+        table.insert(self.agents_active, agent)        
+        -- agent.attr._ascii = agent.attr._ind .. ri
+        agent.attr._ascii = '<>'
+     end
+    
 end
 
 function Traffic:update()

@@ -13,14 +13,14 @@ paths.dofile('batch.lua')
 -- for traffic games
 paths.dofile('Traffic.lua')
 paths.dofile('Crossing.lua')
-paths.dofile('CrossingEasy.lua')
-paths.dofile('CrossingHard.lua')
+--paths.dofile('CrossingEasy.lua')
+--paths.dofile('CrossingHard.lua')
 
 -- for combat games
-paths.dofile('CombatAgent.lua')
-paths.dofile('CombatAgentFactory.lua')
-paths.dofile('CombatGame.lua')
-paths.dofile('CombatGameFactory.lua')
+--paths.dofile('CombatAgent.lua')
+--paths.dofile('CombatAgentFactory.lua')
+--paths.dofile('CombatGame.lua')
+--paths.dofile('CombatGameFactory.lua')
 
 
 local function init_game_opts()
@@ -64,83 +64,20 @@ function g_init_vocab()
     -- general
     vocab_add('nil')
     vocab_add('agent')
-    for i = 1, 5 do
-        vocab_add('agent' .. i)
-    end
-    vocab_add('goal')
-    if g_opts.nactions_comm > 1 then
-        for i = 1, g_opts.nactions_comm do
-            vocab_add('talk' .. i)
-        end
-    end
+    vocab_add('block')
 
     -- absolute coordinates
-    for y = 1, 10 do
-        for x = 1, 10 do
+    for y = 1, 8 do
+        for x = 1, 8 do
             vocab_add('ay' .. y .. 'x' .. x)
         end
     end
 
-    -- game specific
-    if g_factory.games then
-        if g_factory.games['Crossing'] or g_factory.games['CrossingEasy']
-            or g_factory.games['CrossingHard'] then
-            vocab_add('block')
-            for i = 1, 12 do
-                vocab_add('route' .. i)
-            end
-            for y = 1, 14 do
-                for x = 1, 14 do
-                    vocab_add('ay' .. y .. 'x' .. x)
-                end
-            end
-            for i = 1, 10 do
-                vocab_add('agent' .. i)
-            end
-            vocab_add('gas')
-            vocab_add('brake')
-            if g_factory.games['CrossingHard'] then
-                for y = 1, 18 do
-                    for x = 1, 18 do
-                        vocab_add('ay' .. y .. 'x' .. x)
-                    end
-                end
-                for i = 1, 7*8 do
-                    vocab_add('route' .. i)
-                end
-                for i = 1, 20 do
-                    vocab_add('agent' .. i)
-                end
-            end
-        end
-    else
-        -- for combat games
-        for i = 1, 10 do
-            vocab_add('agent' .. i)
-        end
-        vocab_add('marine')
-        for s = -3, 10 do
-           vocab_add('health' .. s)
-        end
-        for s = 0, 2 do
-           vocab_add('shields' .. s)
-        end
-        for s = 0, 2 do
-           vocab_add('mana' .. s)
-        end
-        for s = 0, 5 do
-           vocab_add('cooldown' .. s)
-        end
-        for s = 1, 5 do
-            vocab_add('team' .. s)
-        end
-
-        for y = 1, 15 do
-            for x = 1, 15 do
-                vocab_add('ay' .. y .. 'x' .. x)
-            end
-        end
+    --route
+    for i = 1, 12 do
+        vocab_add('route' .. i)
     end
+
 end
 
 function g_init_game()

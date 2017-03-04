@@ -1,4 +1,3 @@
----rnn + continues comm
 
 require('nn')
 require('nngraph')
@@ -15,6 +14,11 @@ local function nonlin()
     end
 end
 
+local function share(name, mod)
+    if g_shareList[name] == nil then g_shareList[name] = {} end
+    table.insert(g_shareList[name], mod)
+end
+
 local function build_encoder(hidsz)
 	-- linear encoder
 	local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
@@ -23,99 +27,95 @@ local function build_encoder(hidsz)
 	return m
 end
 
-local function build_rnn(input, prev_hid,comm_in)
-	-- input is raw, not encoded
-	--  hid  <- rnn(input, prev_hid, comm_in)
-	-- all are nngraph nodes
-	-- input should be encodede first
-	local pre_nonlinear = {}
-	table.insert(pre_nonlinear, build_encoder(g_opts.hidsz)(input))
-	table.insert(pre_nonlinear, nn.Linear(g_opts.hidsz,g_opts.hidsz)(prev_hid))
-	g_modules['pre_hid'] = pre_nonlinear[2].data.module --nn module applying to prev_hid
-	if comm_in then table.insert(pre_nonlinear, comm_in) end
-	local hid = nonlin()(nn.CAddTable()(pre_nonlinear))
-	return hid
+
+local function build_lookup_bow(context, input, hop)
+    --input (g_opts.memsize, in_dim)
+    --context (1, hidsz)
+    local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
+
+
+    local A_Linear = nn.LookupTable(in_dim, g_opts.hidsz)(input) --(memsize, hidsz)
+    share('A_Linear', A_Linear)
+    g_modules['A_Linear'] = A_Linear
+
+    local B_Linear = nn.LookupTable(in_dim, g_opts.hidsz)(input) --(memsize, hidsz)
+    share('B_Linear', B_Linear)
+    g_modules['B_Linear'] = B_Linear
+
+    local MMaout = nn.MM(false, true)
+    local Aout = MMaout({context, A_Linear}) --(1, memsize)
+    local P = nn.SoftMax()(Aout) --(1, memsize)
+    g_modules[hop]['prob'] = P.data.module
+    local MMbout = nn.MM(false, false)
+    return MMbout({P, B_Linear})
+end
+
+
+local function build_memory(input, context)
+    local hid = {}
+    hid[0] = context
+
+    for h = 1, g_opts.nhop do
+        g_modules[h] = {}
+        local Bout = build_lookup_bow(hid[h-1], input, h)
+        local C = nn.Linear(g_opts.hidsz, g_opts.hidsz)(hid[h-1])
+        share('proj', C)
+        local D = nn.CAddTable()({C, Bout})
+        hid[h] = nonlin()(D)
+    end
+    return hid
+end
+
+local function build_model_memnn()
+
+    local input = nn.Identity()() --(g_opts.memsize, in_dim)
+    local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
+
+    --context: linear transform of the last observation
+    local last_obs = nn.Narrow(1, -1, 1)(input) --(1, in_dim)
+    local context  = nn.Linear(in_dim, g_opts.hidsz)(last_obs)
+
+    local hid = build_memory(input, context)
+
+    return input, hid[#hid]
 end
 
 function g_build_model()
-	--inputs: input(raw), prev_hid, comm_in
-	--outputs: action_prob, baseline, hid, comm_out
 
-	g_model_inputs = {} -- input name(string) -> index
-    g_model_outputs = {}
-	
-	local in_mods = {} --table of input nngraph nodes
-	local out_mods = {} --table of output nngraph nodes
+    local input, output
+    g_shareList = {}
+    g_modules = {}
 
-	--inputs
-	----input(raw), prev_hid
-	local prev_hid = nn.Identity()()
-	local input = nn.Identity()()
-	table.insert(in_mods, input)
-	g_model_inputs['input'] = #in_mods
-	table.insert(in_mods, prev_hid)
-	g_model_inputs['prev_hid'] = #in_mods
-	g_modules['prev_hid'] = prev_hid.data.module
-	----comm_in
-	local comm2hid --???
-	if g_opts.comm then
-		local comm_in = nn.Identity()()
-		table.insert(in_mods, comm_in)
-		g_model_inputs['comm_in'] = #in_mods
-		g_modules['comm_in'] = comm_in.data.module
-		comm2hid = nn.Sum(2)(comm_in) --last dimension size = hidsiz
-	end
+    input, output = build_model_memnn()
 
-	--rnn
-	local hid = build_rnn(input, prev_hid, comm2hid)
+    local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(output))
+    local action = nn.Linear(g_opts.hidsz, g_opts.nactions)(hid_act)
+    local action_logprob = nn.LogSoftMax()(action)
+    local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(output))
+    local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl)
 
-	--action prob output
-	local action = nn.Linear(g_opts.hidsz, g_opts.nactions)(hid)
-	local action_prob = nn.LogSoftMax()(action)
+    local model = nn.gModule({input}, {action_logprob, baseline})
 
-	--baseline
-	local baseline = nn.Linear(g_opts.hidsz, 1)(hid)
-
-	--outputs
-	----action_prob, baseline, hid
-	table.insert(out_mods, action_prob)
-    g_model_outputs['action_prob'] = #out_mods
-    table.insert(out_mods, baseline)
-    g_model_outputs['baseline'] = #out_mods
-    table.insert(out_mods, hid)
-    g_model_outputs['hid'] = #out_mods
-
-    ----comm_out
-    if g_opts.comm then
-        local comm_out
-        comm_out = hid
-
-        if g_opts.comm_decoder >= 1 then
-        	comm_out =  nn.Linear(g_opts.hidsz, g_opts.hidsz)(comm_out)
-            g_modules['comm_decoder'] = comm_out
-            if g_opts.comm_decoder == 2 then
-               comm_out = nonlin()(comm_out)
+    for _, l in pairs(g_shareList) do
+        if #l > 1 then
+            local m1 = l[1].data.module
+            for j = 2,#l do
+                local m2 = l[j].data.module
+                m2:share(m1,'weight','bias','gradWeight','gradBias')
             end
         end
-        comm_out = nn.Contiguous()(nn.Replicate(g_opts.nagents, 2)(comm_out))
-
-        table.insert(out_mods, comm_out)
-        g_model_outputs['comm_out'] = #out_mods
     end
 
-	local m = nn.gModule(in_mods, out_mods)
-	return m
+
+    return model
 end
 
 function g_init_model()
-    g_modules = {}
     g_model = g_build_model()
     g_paramx, g_paramdx = g_model:getParameters()
     if g_opts.init_std > 0 then
         g_paramx:normal(0, g_opts.init_std)
     end
-    
-    g_bl_loss = nn.MSECriterion() --???
-    g_bl_loss.sizeAverage = false  --???
+    g_bl_loss = nn.MSECriterion()
 end
 

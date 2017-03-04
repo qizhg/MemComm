@@ -18,11 +18,13 @@ end
 function Crossing:build_roads_part(transform)
     for y = 1 + self.length - self.road_length, self.length do
         local yy, xx = transform(y, self.length)
-        self:place_item({type = 'block', _invisible = true}, yy, xx)
+        local block = self:place_item({type = 'block', _invisible = false}, yy, xx)
+        block.abs_loc_visible=true
     end
     for x = 1 + self.length - self.road_length, self.length-1 do
         local yy, xx = transform(self.length, x)
-        self:place_item({type = 'block', _invisible = true}, yy, xx)
+        local block = self:place_item({type = 'block',  _invisible = false}, yy, xx)
+        block.abs_loc_visible=true
     end
 
     local r

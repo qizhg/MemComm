@@ -1,1 +1,1 @@
-th test.lua --model rnn --games_config_path games/config/crossing.lua --nagents 10 --max_steps 40 --nactions 2 --comm
+th test.lua

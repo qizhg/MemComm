@@ -14,7 +14,7 @@ local MazeItem = torch.class('MazeItem')
 -- All attributes are visible to the agents.
 function MazeItem:__init(attr)
     self.type = attr.type
-    self.name = attr.name
+    self.name = attr._name
     self.attr = attr
     self.loc = self.attr.loc
     if self.type == 'block' then
