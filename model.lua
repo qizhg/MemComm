@@ -111,7 +111,7 @@ function g_build_model()
     local action = nn.Linear(g_opts.hidsz, g_opts.nactions)(hid_act) --(#batch, nactions)
     local action_logprob = nn.LogSoftMax()(action)  --(#batch, nactions)
     local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(output))  --(#batch, hidsz)
-    local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl) --(#batch, 1)
+    local baseline =  nn.Linear(g_opts.hidsz, 1)(hid_bl) --(#batch, 1)
 
     local model = nn.gModule(input_table, {action_logprob, baseline})
 

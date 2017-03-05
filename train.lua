@@ -47,6 +47,41 @@ function train_batch()
         --get reward
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
+
+    --backward pass
+    g_paramdx:zero()
+    local reward_sum = torch.Tensor(#batch):zero() --running reward sum
+    for t = g_opts.max_steps, 1, -1 do
+        reward_sum:add(reward[t])
+
+        --do step forward
+        local mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
+        mem_input:fill(g_vocab['nil'])
+        local mem_start, mem_end
+        mem_start = math.max(1, t - g_opts.memsize +1)
+        mem_end = t
+        mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        local last_obs = mem_input[1]:clone() --(#batch, in_dim)
+        mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+        local out = g_model:forward({mem_input, last_obs})
+
+        --compute grad baseline
+        local baseline = out[2] --(#batch, 1)
+        local R = reward_sum:clone() --(#batch, )
+        baseline:cmul(active[t]) --(#batch, 1) 
+        R:cmul(active[t]) --(#batch, )
+        local grad_baseline = g_bl_loss:backward(baseline, R):mul(g_opts.alpha) --(#batch, 1)
+
+        --REINFORCE
+        local grad = torch.Tensor(#batch, g_opts.nactions):zero()
+        local R_action = baseline - R
+        grad:scatter(2, action[t], R_action)
+        grad:div(#batch) --???
+
+        --backward
+        g_model:backward({mem_input, last_obs}, {grad, grad_baseline})
+    end
+
 end
 
 function train(N)
@@ -57,7 +92,7 @@ function train(N)
 		for k=1, g_opts.nbatches do
             print(k)
 			train_batch() --get g_paramx, g_paramdx
-			g_update_param(g_paramx, g_paramdx)
+			--g_update_param(g_paramx, g_paramdx)
 		end
 	end
 
