@@ -9,9 +9,9 @@ paths.dofile('games/init.lua')
 local cmd = torch.CmdLine()
 -- model parameters
 cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
-cmd:option('--nhop', 1, 'the number of model steps per action')
-cmd:option('--hidsz', 50, 'the size of the internal state vector')
-cmd:option('--memsize', 5, 'memorize the last 5 time steps')
+cmd:option('--nhop', 2, 'the number of model steps per action')
+cmd:option('--hidsz', 20, 'the size of the internal state vector')
+cmd:option('--memsize', 3, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'tanh', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 cmd:option('--init_hid', 0.1, 'initial value of internal state')
@@ -23,19 +23,19 @@ cmd:option('--unroll_freq', 4, 'unroll after every several steps')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
-cmd:option('--max_steps', 40, 'force to end the game after this many steps')
+cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
 cmd:option('--game', '', 'can specify a single game')
-cmd:option('--visibility', 1, 'vision range of agents')
+cmd:option('--visibility', 2, 'vision range of agents')
 -- training parameters
 cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
 cmd:option('--lrate', 1e-3, 'learning rate')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--epochs', 1, 'the number of training epochs')
-cmd:option('--nbatches', 10, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--epochs', 100, 'the number of training epochs')
+cmd:option('--nbatches', 1000, 'the number of mini-batches in one epoch')
+cmd:option('--batch_size', 4, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 -- for optim
@@ -72,6 +72,8 @@ g_opts = cmd:parse(arg or {})
 g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
 g_factory.vocab = g_vocab
+
+
 
 g_init_model()
 g_log = {}

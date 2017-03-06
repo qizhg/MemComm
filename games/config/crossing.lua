@@ -20,7 +20,7 @@ local sso = {}
 sso.costs = {}
 sso.costs.goal = 0
 sso.costs.step = 0
-sso.costs.pass = 1.0
+sso.costs.pass = -10.0
 sso.costs.collision = 0
 sso.costs.wait = 0.01
 ---------------------

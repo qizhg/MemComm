@@ -57,7 +57,7 @@ function MazeMap:get_empty_loc(fat)
 end
 
 function MazeMap:is_loc_reachable(y, x)
-     if y < 1 or x < 1 then
+    if y < 1 or x < 1 then
         return false
     elseif y > self.height or x > self.width then
         return false

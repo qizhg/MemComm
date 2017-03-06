@@ -31,7 +31,7 @@ function Traffic:__init(opts, vocab)
         agent.attr._invisible = true
         local colors = {'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'}
         agent.attr._ascii_color = { colors[torch.random(#colors)] }
-        agent.abs_loc_visible = true
+        --agent.abs_loc_visible = true
         agent.active = false
         agent.act = function(self, action_id)
             assert(self.active)

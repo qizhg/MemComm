@@ -36,6 +36,7 @@ function MazeAgent:add_move_actions()
     self:add_action('up',
         function(self)
             if self.map:is_loc_reachable(self.loc.y - 1, self.loc.x) then
+                --print('move up!!!')
                 self.map:remove_item(self)
                 self.loc.y = self.loc.y - 1
                 self.map:add_item(self)
@@ -44,6 +45,7 @@ function MazeAgent:add_move_actions()
     self:add_action('down',
         function(self)
             if self.map:is_loc_reachable(self.loc.y + 1, self.loc.x) then
+                --print('move down!!!')
                 self.map:remove_item(self)
                 self.loc.y = self.loc.y + 1
                 self.map:add_item(self)
@@ -52,6 +54,7 @@ function MazeAgent:add_move_actions()
     self:add_action('left',
         function(self)
             if self.map:is_loc_reachable(self.loc.y, self.loc.x - 1) then
+                --print('move left!!!')
                 self.map:remove_item(self)
                 self.loc.x = self.loc.x - 1
                 self.map:add_item(self)
@@ -60,6 +63,7 @@ function MazeAgent:add_move_actions()
     self:add_action('right',
         function(self)
             if self.map:is_loc_reachable(self.loc.y, self.loc.x + 1) then
+                --print('move right!!!')
                 self.map:remove_item(self)
                 self.loc.x = self.loc.x + 1
                 self.map:add_item(self)

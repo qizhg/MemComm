@@ -19,6 +19,7 @@ function train_batch()
 
 
     --play the game (forward pass)
+    
     for t = 1, g_opts.max_steps do
         --get active games
         active[t] = batch_active(batch)
@@ -41,7 +42,7 @@ function train_batch()
         
         
         --act & update
-        batch_act(batch, action[t], active)
+        batch_act(batch, action[t], active[t])
         batch_update(batch, active[t])
 
         --get reward
@@ -82,6 +83,8 @@ function train_batch()
         --backward
         g_model:backward({mem_input, last_obs}, {grad, grad_baseline})
     end
+
+    --print(reward_sum[1])
 
     --log
     local stat={}

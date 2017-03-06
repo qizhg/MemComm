@@ -41,7 +41,7 @@ function batch_act(batch, action, active)
     --active = active:view(#batch, g_opts.nagents)
     for i, g in pairs(batch) do
         for a = 1, g_opts.nagents do
-            set_current_agent(g, a)
+            --set_current_agent(g, a)
             if active[i] == 1 then
                 g:act(action[i][a])
             end
