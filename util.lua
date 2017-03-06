@@ -85,11 +85,13 @@ function format_stat(stat)
     for n in pairs(stat) do table.insert(a, n) end
     table.sort(a)
     local str = ''
+    
     for i,n in ipairs(a) do
         if string.find(n,'count_') then
             str = str .. n .. ': ' .. string.format("%2.4g",stat[n]) .. ' '
         end
     end
+    
     str = str .. '\n'
     for i,n in ipairs(a) do
         if string.find(n,'reward_') then
@@ -97,16 +99,18 @@ function format_stat(stat)
         end
     end
     str = str .. '\n'
-    for i,n in ipairs(a) do
-        if string.find(n,'success_') then
-            str = str .. n .. ': ' ..  string.format("%2.4g",stat[n]) .. ' '
-        end
-    end
-    str = str .. '\n'
-    str = str .. 'bl_cost: ' .. string.format("%2.4g",stat['bl_cost']) .. ' '
+    
+    --for i,n in ipairs(a) do
+    --    if string.find(n,'success_') then
+    --        str = str .. n .. ': ' ..  string.format("%2.4g",stat[n]) .. ' '
+    --    end
+    --end
+    --str = str .. '\n'
+    
+    --str = str .. 'bl_cost: ' .. string.format("%2.4g",stat['bl_cost']) .. ' '
     str = str .. 'reward: ' .. string.format("%2.4g",stat['reward']) .. ' '
-    str = str .. 'success: ' .. string.format("%2.4g",stat['success']) .. ' '
-    str = str .. 'active: ' .. string.format("%2.4g",stat['step_active']) .. ' '
+    --str = str .. 'success: ' .. string.format("%2.4g",stat['success']) .. ' '
+    --str = str .. 'active: ' .. string.format("%2.4g",stat['step_active']) .. ' '
     str = str .. 'epoch: ' .. stat['epoch']
     return str
 end

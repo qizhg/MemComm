@@ -33,7 +33,7 @@ cmd:option('--lrate', 1e-3, 'learning rate')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--epochs', 100, 'the number of training epochs')
+cmd:option('--epochs', 1, 'the number of training epochs')
 cmd:option('--nbatches', 10, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
@@ -69,25 +69,10 @@ cmd:option('--curriculum_end', 0, 'when to make the game hardest')
 
 g_opts = cmd:parse(arg or {})
 
-
 g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
 g_factory.vocab = g_vocab
 
-
---game = new_game()
---print(#game.agents)
---print(#game.agents_inactive)
---print(#game.agents_active)
-
-
---s= game.agent:to_sentence(0, 0, true)
---print(game.agent.name, ':', table.concat(s,', '))
-
---data = torch.Tensor(2*g_opts.visibility+1, 2*g_opts.visibility+1, g_opts.nwords)
---print(g_opts.nwords)
---data:fill(game.vocab['nil'])
---game:get_visible_state(data)
-
 g_init_model()
-train(1)
+g_log = {}
+train(g_opts.epochs)

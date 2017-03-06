@@ -49,6 +49,7 @@ function train_batch()
     end
 
     --backward pass
+    
     g_paramdx:zero()
     local reward_sum = torch.Tensor(#batch):zero() --running reward sum
     for t = g_opts.max_steps, 1, -1 do
@@ -82,18 +83,41 @@ function train_batch()
         g_model:backward({mem_input, last_obs}, {grad, grad_baseline})
     end
 
+    --log
+    local stat={}
+    for i, g in pairs(batch) do
+        stat.reward = (stat.reward or 0) + reward_sum[i]
+        stat.count = (stat.count or 0) + 1
+    end
+    return stat
+
 end
 
 function train(N)
 	--N: number of epochs
 	--nbatches: number of batches in an epoch
 	--batch_size: number of games in a batch 
-	for n = 1, N do
+	
+    for n = 1, N do
+        local stat = {} --for the epoch
 		for k=1, g_opts.nbatches do
-            print(k)
-			train_batch() --get g_paramx, g_paramdx
-			--g_update_param(g_paramx, g_paramdx)
+			local s = train_batch() --get g_paramx, g_paramdx
+			g_update_param(g_paramx, g_paramdx)
+            for k, v in pairs(s) do
+                stat[k] = (stat[k] or 0) + v
+            end
+
 		end
+        for k, v in pairs(stat) do
+            if string.sub(k, 1, 5) == 'count' then
+                local s = string.sub(k, 6)
+                stat['reward' .. s] = stat['reward' .. s] / v
+            end
+        end
+        stat.epoch = #g_log + 1
+        print(format_stat(stat))
+        table.insert(g_log, stat)
+        g_save_model()
 	end
 
 
