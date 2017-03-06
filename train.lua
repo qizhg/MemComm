@@ -15,7 +15,7 @@ function train_batch()
 
     local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
     local obs = torch.Tensor(g_opts.max_steps, #batch, in_dim)
-    obs:fill(g_vocab['nil'])
+    obs:fill(0)
 
 
     --play the game (forward pass)
@@ -24,7 +24,7 @@ function train_batch()
         --get active games
         active[t] = batch_active(batch)
     	--get the latest observation
-    	obs[t] = batch_obs(batch,active)
+    	obs[t] = batch_obs(batch,active[t])
         --get input
         local mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
         mem_input:fill(g_vocab['nil'])
@@ -48,6 +48,7 @@ function train_batch()
         --get reward
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
+    local success = batch_success(batch)
 
     --backward pass
     
@@ -88,10 +89,9 @@ function train_batch()
 
     --log
     local stat={}
-    for i, g in pairs(batch) do
-        stat.reward = (stat.reward or 0) + reward_sum[i]
-        stat.count = (stat.count or 0) + 1
-    end
+    stat.reward = reward_sum:sum()
+    stat.success = success:sum()
+    stat.count = g_opts.batch_size
     return stat
 
 end
@@ -115,6 +115,7 @@ function train(N)
             if string.sub(k, 1, 5) == 'count' then
                 local s = string.sub(k, 6)
                 stat['reward' .. s] = stat['reward' .. s] / v
+                stat['success' .. s] = stat['success' .. s] / v
             end
         end
         stat.epoch = #g_log + 1

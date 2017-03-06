@@ -125,12 +125,13 @@ function MazeBase:to_sentence(sentence)
 end
 
 function MazeBase:get_visible_state(data, use_lut)
-
     for dy = -self.visibility, self.visibility do
         for dx = -self.visibility, self.visibility do
-            local y, x
-            y = self.agent.loc.y + dy
-            x = self.agent.loc.x + dx
+            local y = self.agent.loc.y + dy
+            local x = self.agent.loc.x + dx
+            local data_y = dy + self.visibility + 1
+            local data_x = dx + self.visibility + 1
+
             if self.map.items[y] and self.map.items[y][x] then
                 for _, e in pairs(self.map.items[y][x]) do
                     if self.agent == e or (not e.attr._invisible) then
@@ -140,12 +141,13 @@ function MazeBase:get_visible_state(data, use_lut)
                         --end
                         for i = 1, #s do
                             if self.vocab[s[i]] == nil then error('not found in dict:' .. s[i]) end
-                            local data_y = dy + self.visibility + 1
-                            local data_x = dx + self.visibility + 1
+                            
                             data[data_y][data_x][self.vocab[s[i]]] = 1
                         end
                     end
                 end
+            elseif x>0 and y>0 and x<=self.map.width and y<=self.map.height then
+                data[data_y][data_x][self.vocab['nil']] = 1
             end
         end
     end

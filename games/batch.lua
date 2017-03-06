@@ -26,9 +26,9 @@ end
 function batch_obs(batch, active) --return 0-1 vector
 
     local input = torch.Tensor(#batch, 2*g_opts.visibility+1, 2*g_opts.visibility+1, g_opts.nwords)
-    input:fill(g_vocab['nil'])
+    input:fill(0)
     for i, g in pairs(batch) do
-        if active[i] == 1 then 
+        if active[i] == 1 then
             g:get_visible_state(input[i])
         end
     end

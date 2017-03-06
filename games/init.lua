@@ -67,14 +67,14 @@ function g_init_vocab()
     vocab_add('block')
 
     -- absolute coordinates
-    for y = 1, 8 do
-        for x = 1, 8 do
-            vocab_add('ay' .. y .. 'x' .. x)
-        end
-    end
+    --for y = 1, 8 do
+    --    for x = 1, 8 do
+    --        vocab_add('ay' .. y .. 'x' .. x)
+    --    end
+    --end
 
     --route
-    for i = 1, 12 do
+    for i = 1, 3 do
         vocab_add('route' .. i)
     end
 

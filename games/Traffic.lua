@@ -54,7 +54,8 @@ function Traffic:add_agent()
         self.add_rate = 1.0
     end
     
-    local src = self.source_locs[torch.random(#self.source_locs)]
+    --local src = self.source_locs[torch.random(#self.source_locs)]
+    local src = self.source_locs[torch.random(1)]
     
     if #self.agents_active >= self.max_agents then
         return
@@ -92,7 +93,7 @@ function Traffic:update()
     self.ncollision = 0
     for _, agent in pairs(self.agents) do
         agent.success_pass = 0
-        agent.ncollision = 0
+        --agent.ncollision = 0
     end
     local t = {}
     for _, agent in pairs(self.agents_active) do
@@ -128,7 +129,7 @@ end
 function Traffic:get_reward(is_last)
 
     local r = 0
-    r = r - self.agent.success_pass * self.costs.pass 
+    r = r - self.agent.success_pass * self.costs.pass
     r = r - self.agent.ncollision * self.costs.collision
     r = r - self.agent.t * self.costs.wait
     return r
@@ -139,7 +140,7 @@ function Traffic:is_active()
 end
 
 function Traffic:is_success()
-    if self.ncollision_total > 0 then
+    if self.agent.success_pass == 0 then
         return false
     else
         return true

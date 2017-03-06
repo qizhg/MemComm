@@ -18,6 +18,8 @@ function MazeAgent:__init(attr, maze)
     self.action_ids = {}    -- name -> id
     self.actions = {}       -- id -> func
     self.nactions = 0
+
+    self.ncollision = 0;
     self:add_move_actions()
 end
 
@@ -40,6 +42,11 @@ function MazeAgent:add_move_actions()
                 self.map:remove_item(self)
                 self.loc.y = self.loc.y - 1
                 self.map:add_item(self)
+
+                self.ncollision = 0
+            else
+                self.ncollision = 1
+                --print('!!!')
             end
         end)
     self:add_action('down',
@@ -49,6 +56,11 @@ function MazeAgent:add_move_actions()
                 self.map:remove_item(self)
                 self.loc.y = self.loc.y + 1
                 self.map:add_item(self)
+
+                self.ncollision = 0
+            else
+                self.ncollision = 1
+                --print('!!!')
             end
         end)
     self:add_action('left',
@@ -58,6 +70,11 @@ function MazeAgent:add_move_actions()
                 self.map:remove_item(self)
                 self.loc.x = self.loc.x - 1
                 self.map:add_item(self)
+
+                self.ncollision = 0
+            else
+                self.ncollision = 1
+                --print('!!!')
             end
         end)
     self:add_action('right',
@@ -67,6 +84,11 @@ function MazeAgent:add_move_actions()
                 self.map:remove_item(self)
                 self.loc.x = self.loc.x + 1
                 self.map:add_item(self)
+
+                self.ncollision = 0
+            else
+                self.ncollision = 1
+                --print('!!!')
             end
         end)
     self:add_action('stop',
@@ -81,7 +103,7 @@ function MazeAgent:act(action_id)
     if f == nil then
        print('Available actions are: ')
        for k,v in pairs(self.actions) do
-	  print(k)
+	       print(k)
        end
        error('Could not find action for action_id: ' .. action_id)
     end

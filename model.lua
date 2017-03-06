@@ -89,7 +89,7 @@ local function build_model_memnn()
     local last_obs = nn.Identity()() --(#batch, in_dim)
 
     --context: linear transform of the last observation
-    local context  = nn.Linear(in_dim, g_opts.hidsz)(last_obs) --(#batch, hidsz)
+    local context  = nonlin()(nn.Linear(in_dim, g_opts.hidsz)(last_obs)) --(#batch, hidsz)
 
     local hid = build_memory(input, context)
 
