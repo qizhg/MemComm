@@ -6,12 +6,14 @@ paths.dofile('model.lua')
 paths.dofile('train.lua')
 paths.dofile('games/init.lua')
 
+require'gnuplot'
+
 local cmd = torch.CmdLine()
 -- model parameters
 cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
 cmd:option('--nhop', 1, 'the number of model steps per action')
-cmd:option('--hidsz', 10, 'the size of the internal state vector')
-cmd:option('--memsize', 1, 'memorize the last 3 time steps')
+cmd:option('--hidsz', 20, 'the size of the internal state vector')
+cmd:option('--memsize', 5, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 cmd:option('--init_hid', 0.1, 'initial value of internal state')
@@ -23,7 +25,7 @@ cmd:option('--unroll_freq', 4, 'unroll after every several steps')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
-cmd:option('--max_steps', 30, 'force to end the game after this many steps')
+cmd:option('--max_steps', 40, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
 cmd:option('--game', '', 'can specify a single game')
 cmd:option('--visibility', 1, 'vision range of agents')
@@ -33,9 +35,9 @@ cmd:option('--lrate', 3e-3, 'learning rate')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--epochs', 50, 'the number of training epochs')
-cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 4, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--epochs', 150, 'the number of training epochs')
+cmd:option('--nbatches', 20, 'the number of mini-batches in one epoch')
+cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 -- for optim
@@ -76,6 +78,85 @@ g_factory.vocab = g_vocab
 
 print(g_factory.vocab)
 
+num_of_experiments = 50
+----------memsize 1------
+g_opts.memsize = 1
 g_init_model()
-g_log = {}
-train(g_opts.epochs)
+g_logs = {}
+for i = 1, num_of_experiments do
+	print('mem1 '..i)
+	if g_opts.init_std > 0 then
+        g_paramx:normal(0, g_opts.init_std)
+    end
+	g_log = {}
+	train(g_opts.epochs)
+	g_logs[i] = g_log
+end
+
+x = torch.rand(g_opts.epochs)
+for n = 1, g_opts.epochs do
+	x[n]=n
+end
+
+y1 = torch.rand(g_opts.epochs,num_of_experiments)
+for i = 1, num_of_experiments do
+	for n = 1, g_opts.epochs do
+		y1[n][i] = g_logs[i][n].success
+	end
+end
+
+
+y1_mean = torch.mean(y1,2)
+y1_err = torch.std(y1,2) / torch.sqrt(num_of_experiments)
+y1_mean = torch.squeeze(y1_mean)
+y1_err = torch.squeeze(y1_err)
+y1_high = y1_mean + y1_err
+y1_low = y1_mean - y1_err
+yy1 = torch.cat(x,y1_low,2)
+yy1 = torch.cat(yy1,y1_high,2)
+
+----------memsize 5------
+g_opts.memsize = 5
+g_init_model()
+g_logs = {}
+for i = 1, num_of_experiments do
+	print('mem5 '..i)
+
+	if g_opts.init_std > 0 then
+        g_paramx:normal(0, g_opts.init_std)
+    end
+	g_log = {}
+	train(g_opts.epochs)
+	g_logs[i] = g_log
+end
+
+y5 = torch.rand(g_opts.epochs,num_of_experiments)
+for i = 1, num_of_experiments do
+	for n = 1, g_opts.epochs do
+		y5[n][i] = g_logs[i][n].success
+	end
+end
+
+y5_mean = torch.mean(y5,2)
+y5_err = torch.std(y5,2) / torch.sqrt(num_of_experiments)
+y5_mean = torch.squeeze(y5_mean)
+y5_err = torch.squeeze(y5_err)
+y5_high = y5_mean + y5_err
+y5_low = y5_mean - y5_err
+yy5 = torch.cat(x,y5_low,2)
+yy5 = torch.cat(yy5,y5_high,2)
+
+--plot
+gnuplot.pngfigure('16by16.png')
+gnuplot.plot(
+	{yy1,'with filledcurves fill transparent solid 0.2 ls 1'},
+	{'memory size=1',x,y1_mean,'with lines ls 1'}
+	{yy5,'with filledcurves fill transparent solid 0.2 ls 2'},
+	{'memory size=5',x,y5_mean,'with lines ls 2'}
+	)
+gnuplot.xlabel('epochs(1 epoch = 100 episodes)')
+gnuplot.ylabel('success rate')
+gnuplot.plotflush()
+
+
+

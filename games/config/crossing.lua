@@ -10,8 +10,8 @@ if not g_opts then g_opts = {} end
 g_opts.multigames = {}
 g_opts.max_attributes = 5 --?
 
-local mapH = torch.Tensor{8,8,8,8,1}
-local mapW = torch.Tensor{8,8,8,8,1}
+local mapH = torch.Tensor{16,16,16,16,1}
+local mapW = torch.Tensor{16,16,16,16,1}
 
 -------------------
 --some shared StaticOpts

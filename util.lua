@@ -176,3 +176,11 @@ function plot_reward()
     end
     gnuplot.plot(x)
 end
+
+function plot_success()
+    local x = torch.zeros(#g_log)
+    for i = 1, #g_log do
+        x[i] = g_log[i].success
+    end
+    gnuplot.plot(x)
+end

@@ -119,7 +119,7 @@ function train(N)
             end
         end
         stat.epoch = #g_log + 1
-        print(format_stat(stat))
+        --print(format_stat(stat))
         table.insert(g_log, stat)
         g_save_model()
 	end
