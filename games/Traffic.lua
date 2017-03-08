@@ -129,6 +129,9 @@ end
 function Traffic:get_reward(is_last)
 
     local r = 0
+    if self:is_active() == false then 
+        return r
+    end
     r = r - self.agent.success_pass * self.costs.pass
     r = r - self.agent.ncollision * self.costs.collision
     r = r - self.agent.t * self.costs.wait

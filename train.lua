@@ -26,18 +26,21 @@ function train_batch()
     	--get the latest observation
     	obs[t] = batch_obs(batch,active[t])
         --get input
-        local mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
-        mem_input:fill(g_vocab['nil'])
-        local mem_start, mem_end
-        mem_start = math.max(1, t - g_opts.memsize +1)
-        mem_end = t
-        mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
-        local last_obs = mem_input[1]:clone() --(#batch, in_dim)
+        local mem_input = torch.Tensor(math.max(1,g_opts.memsize), #batch, in_dim)
+        mem_input:fill(0)
+        local new_obs = obs[t]:clone() --(#batch, in_dim)
+        if g_opts.memsize > 0 and t > 1 then 
+            local mem_start, mem_end
+            mem_start = math.max(1, t - g_opts.memsize)
+            mem_end = math.max(1, t - 1)
+            mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        end
         mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+
         
 
         --forward input to get output = {action_logprob, baseline}
-        local out = g_model:forward({mem_input, last_obs})  --out[1] = action_logprob
+        local out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
         action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
         
         
@@ -58,15 +61,18 @@ function train_batch()
         reward_sum:add(reward[t])
 
         --do step forward
-        local mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
-        mem_input:fill(g_vocab['nil'])
-        local mem_start, mem_end
-        mem_start = math.max(1, t - g_opts.memsize +1)
-        mem_end = t
-        mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
-        local last_obs = mem_input[1]:clone() --(#batch, in_dim)
+        local mem_input = torch.Tensor(math.max(1,g_opts.memsize), #batch, in_dim)
+        mem_input:fill(0)
+        local new_obs = obs[t]:clone() --(#batch, in_dim)
+        if g_opts.memsize> 0 and t> 1 then 
+            local mem_start, mem_end
+            mem_start = math.max(1, t - g_opts.memsize)
+            mem_end = math.max(1, t - 1)
+            mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        end
         mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
-        local out = g_model:forward({mem_input, last_obs})
+
+        local out = g_model:forward({mem_input, new_obs})
 
         --compute grad baseline
         local baseline = out[2] --(#batch, 1)
@@ -82,7 +88,7 @@ function train_batch()
         grad:div(#batch) --???
 
         --backward
-        g_model:backward({mem_input, last_obs}, {grad, grad_baseline})
+        g_model:backward({mem_input, new_obs}, {grad, grad_baseline})
     end
 
     --print(reward_sum[1])
@@ -119,7 +125,7 @@ function train(N)
             end
         end
         stat.epoch = #g_log + 1
-        --print(format_stat(stat))
+        print(format_stat(stat))
         table.insert(g_log, stat)
         g_save_model()
 	end

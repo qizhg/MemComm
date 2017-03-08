@@ -1,6 +1,7 @@
 
 require('nn')
 require('nngraph')
+paths.dofile('LinearNB.lua')
 
 local function nonlin()
     if g_opts.nonlin == 'tanh' then
@@ -19,13 +20,13 @@ local function share(name, mod)
     table.insert(g_shareList[name], mod)
 end
 
-local function build_encoder(hidsz)
-	-- linear encoder
-	local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
-	local m = nn.Linear(in_dim, hidsz)
-	g_modules['encoder_linear'] = m --nn module to encode raw input
-	return m
-end
+--local function build_encoder(hidsz)
+--	-- linear encoder
+--	local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
+--	local m = nn.Linear(in_dim, hidsz)
+--	g_modules['encoder_linear'] = m --nn module to encode raw input
+--	return m
+--end
 
 
 local function build_lookup_bow(context, input, hop)
@@ -38,14 +39,14 @@ local function build_lookup_bow(context, input, hop)
     for i =1, g_opts.batch_size do
         local input2dim = nn.Select(1,i)(input) --(memsize, in_dim)
         
-        local A_Linear = nn.Linear(in_dim, g_opts.hidsz)(input2dim)
-        table.insert(A_in_table, nn.View(1, g_opts.memsize, g_opts.hidsz)(A_Linear) )--(1, memsize, hidsz)
+        local A_Linear = nn.LinearNB(in_dim, g_opts.hidsz)(input2dim)
+        table.insert(A_in_table, nn.View(1, math.max(1,g_opts.memsize), g_opts.hidsz)(A_Linear) )--(1, memsize, hidsz)
         share('A_Linear', A_Linear)
         g_modules['A_Linear'] = A_Linear
          
 
-        local B_Linear = nn.Linear(in_dim, g_opts.hidsz)(input2dim)
-        table.insert(B_in_table, nn.View(1, g_opts.memsize, g_opts.hidsz)(B_Linear) )--(1, memsize, hidsz)
+        local B_Linear = nn.LinearNB(in_dim, g_opts.hidsz)(input2dim)
+        table.insert(B_in_table, nn.View(1, math.max(1,g_opts.memsize), g_opts.hidsz)(B_Linear) )--(1, memsize, hidsz)
         share('B_Linear', B_Linear)
         g_modules['B_Linear'] = B_Linear
     end
@@ -73,7 +74,7 @@ local function build_memory(input, context)
     for h = 1, g_opts.nhop do
         g_modules[h] = {}
         local Bout = build_lookup_bow(hid[h-1], input, h) --(#batch, hidsz)
-        local C = nn.Linear(g_opts.hidsz, g_opts.hidsz)(hid[h-1]) --(#batch, hidsz)
+        local C = nn.LinearNB(g_opts.hidsz, g_opts.hidsz)(hid[h-1]) --(#batch, hidsz)
         share('proj', C)
         local D = nn.CAddTable()({C, Bout}) --(#batch, hidsz)
         hid[h] = nonlin()(D) --(#batch, hidsz)
@@ -85,15 +86,15 @@ local function build_model_memnn()
 
     local input = nn.Identity()()  --(#batch, memsize, in_dim)
     local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
-
-    local last_obs = nn.Identity()() --(#batch, in_dim)
+    local new_obs = nn.Identity()() --(#batch, in_dim)
 
     --context: linear transform of the last observation
-    local context  = nonlin()(nn.Linear(in_dim, g_opts.hidsz)(last_obs)) --(#batch, hidsz)
+    local context  = (nn.Linear(in_dim, g_opts.hidsz)(new_obs)) --(#batch, hidsz)
 
     local hid = build_memory(input, context)
-
-    return {input, last_obs}, hid[#hid]
+    local output = nn.CAddTable()({hid[#hid], context})
+    return {input, new_obs}, output
+    
 end
 
 function g_build_model()

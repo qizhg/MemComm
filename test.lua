@@ -13,7 +13,7 @@ local cmd = torch.CmdLine()
 cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 5, 'memorize the last 3 time steps')
+cmd:option('--memsize', 1, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 cmd:option('--init_hid', 0.1, 'initial value of internal state')
@@ -25,7 +25,7 @@ cmd:option('--unroll_freq', 4, 'unroll after every several steps')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
-cmd:option('--max_steps', 40, 'force to end the game after this many steps')
+cmd:option('--max_steps', 50, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
 cmd:option('--game', '', 'can specify a single game')
 cmd:option('--visibility', 1, 'vision range of agents')
@@ -35,7 +35,7 @@ cmd:option('--lrate', 3e-3, 'learning rate')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--epochs', 150, 'the number of training epochs')
+cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches', 20, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
@@ -79,8 +79,8 @@ g_factory.vocab = g_vocab
 print(g_factory.vocab)
 
 num_of_experiments = 50
-----------memsize 1------
-g_opts.memsize = 1
+----------memsize 0------
+g_opts.memsize = 0
 g_init_model()
 g_logs = {}
 for i = 1, num_of_experiments do
@@ -92,6 +92,8 @@ for i = 1, num_of_experiments do
 	train(g_opts.epochs)
 	g_logs[i] = g_log
 end
+
+
 
 x = torch.rand(g_opts.epochs)
 for n = 1, g_opts.epochs do
@@ -146,17 +148,48 @@ y5_low = y5_mean - y5_err
 yy5 = torch.cat(x,y5_low,2)
 yy5 = torch.cat(yy5,y5_high,2)
 
+----------memsize 10------
+g_opts.memsize = 10
+g_init_model()
+g_logs = {}
+for i = 1, num_of_experiments do
+	print('mem10 '..i)
+
+	if g_opts.init_std > 0 then
+        g_paramx:normal(0, g_opts.init_std)
+    end
+	g_log = {}
+	train(g_opts.epochs)
+	g_logs[i] = g_log
+end
+
+y10 = torch.rand(g_opts.epochs,num_of_experiments)
+for i = 1, num_of_experiments do
+	for n = 1, g_opts.epochs do
+		y10[n][i] = g_logs[i][n].success
+	end
+end
+
+y10_mean = torch.mean(y10,2)
+y10_err = torch.std(y10,2) / torch.sqrt(num_of_experiments)
+y10_mean = torch.squeeze(y10_mean)
+y10_err = torch.squeeze(y10_err)
+y10_high = y10_mean + y10_err
+y10_low = y10_mean - y10_err
+yy10 = torch.cat(x,y10_low,2)
+yy10 = torch.cat(yy10,y10_high,2)
+
 --plot
 gnuplot.pngfigure('16by16.png')
 gnuplot.plot(
 	{yy1,'with filledcurves fill transparent solid 0.2 ls 1'},
-	{'memory size=1',x,y1_mean,'with lines ls 1'}
+	{'memory size=0',x,y1_mean,'with lines ls 1'},
 	{yy5,'with filledcurves fill transparent solid 0.2 ls 2'},
-	{'memory size=5',x,y5_mean,'with lines ls 2'}
+	{'memory size=5',x,y5_mean,'with lines ls 2'},
+	{yy10,'with filledcurves fill transparent solid 0.2 ls 3'},
+	{'memory size=10',x,y10_mean,'with lines ls 3'}
 	)
 gnuplot.xlabel('epochs(1 epoch = 100 episodes)')
 gnuplot.ylabel('success rate')
 gnuplot.plotflush()
-
-
 
