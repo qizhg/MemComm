@@ -19,6 +19,10 @@ function train_batch()
 
 
     --play the game (forward pass)
+    --local game = batch[1]
+    --local agent = game.agent
+    --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
+    --print('des: '..agent.route[#agent.route].y..'  '..agent.route[#agent.route].x)
     
     for t = 1, g_opts.max_steps do
         --get active games
@@ -43,15 +47,20 @@ function train_batch()
         local out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
         action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
         
+        --print('attention: ')
+        --print(out[3][1])
         
         --act & update
         batch_act(batch, action[t], active[t])
+        --print('action:'..agent.action_names[action[t][1][1]])
+        --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
         batch_update(batch, active[t])
 
         --get reward
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
     local success = batch_success(batch)
+    --print(success[1])
 
     --backward pass
     
@@ -105,13 +114,17 @@ end
 function train(N)
 	--N: number of epochs
 	--nbatches: number of batches in an epoch
-	--batch_size: number of games in a batch 
+	--batch_size: number of games in a batch
+
+    to_update= true
 	
     for n = 1, N do
         local stat = {} --for the epoch
 		for k=1, g_opts.nbatches do
 			local s = train_batch() --get g_paramx, g_paramdx
-			g_update_param(g_paramx, g_paramdx)
+            if to_update then
+                g_update_param(g_paramx, g_paramdx)
+            end
             for k, v in pairs(s) do
                 stat[k] = (stat[k] or 0) + v
             end
@@ -124,10 +137,13 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
+        --if stat.success > 0.65 then
+        --    g_save_model()
+        --    to_update =false
+        --end
         stat.epoch = #g_log + 1
         print(format_stat(stat))
         table.insert(g_log, stat)
-        g_save_model()
 	end
 
 

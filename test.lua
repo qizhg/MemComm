@@ -13,7 +13,7 @@ local cmd = torch.CmdLine()
 cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 1, 'memorize the last 3 time steps')
+cmd:option('--memsize', 10, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 cmd:option('--init_hid', 0.1, 'initial value of internal state')
@@ -35,7 +35,7 @@ cmd:option('--lrate', 3e-3, 'learning rate')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--epochs', 100, 'the number of training epochs')
+cmd:option('--epochs', 300, 'the number of training epochs')
 cmd:option('--nbatches', 20, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
@@ -61,8 +61,8 @@ cmd:option('--nactions_comm', 1, 'enable discrete communication when larger than
 cmd:option('--dcomm_entropy_cost', 0, 'entropy regularization for discrete communication')
 cmd:option('--fully_connected', false, 'use fully-connected model for all agents')
 --other
-cmd:option('--save', '', 'file name to save the model')
-cmd:option('--load', '', 'file name to load the model')
+cmd:option('--save', '65_model', 'file name to save the model')
+cmd:option('--load', '65_model', 'file name to load the model')
 cmd:option('--show', false, 'show progress')
 cmd:option('--no_coop', false, 'agents are NOT cooperative')
 cmd:option('--plot', false, 'plot average reward during training')
@@ -70,17 +70,19 @@ cmd:option('--curriculum_sta', 0, 'start making harder after this many epochs')
 cmd:option('--curriculum_end', 0, 'when to make the game hardest')
 
 g_opts = cmd:parse(arg or {})
-print(g_opts)
 
 g_init_game() --create g_factory
 g_init_vocab() --create g_vocab
 g_factory.vocab = g_vocab
 
-print(g_factory.vocab)
+g_init_model()
+g_log = {}
+train(g_opts.epochs)
 
-num_of_experiments = 50
+--[[
+num_of_experiments = 40
 ----------memsize 0------
-g_opts.memsize = 0
+g_opts.memsize = 10
 g_init_model()
 g_logs = {}
 for i = 1, num_of_experiments do
@@ -193,3 +195,5 @@ gnuplot.xlabel('epochs(1 epoch = 100 episodes)')
 gnuplot.ylabel('success rate')
 gnuplot.plotflush()
 
+
+--]]

@@ -19,7 +19,7 @@ function MazeAgent:__init(attr, maze)
     self.actions = {}       -- id -> func
     self.nactions = 0
 
-    self.ncollision = 0;
+    self.ncollision = 0
     self:add_move_actions()
 end
 
