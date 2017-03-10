@@ -2,6 +2,8 @@
 require('nn')
 require('nngraph')
 paths.dofile('LinearNB.lua')
+paths.dofile('Entropy.lua')
+
 
 local function nonlin()
     if g_opts.nonlin == 'tanh' then
@@ -72,10 +74,12 @@ local function build_memory(input, context)
         Bout = build_lookup_bow(hid[h-1], input, h) --(#batch, hidsz)
         --local Bout = temp[1]
         --P = temp[2]
-        local C = nn.LinearNB(g_opts.hidsz, g_opts.hidsz)(hid[h-1]) --(#batch, hidsz)
-        share('proj', C)
-        local D = nn.CAddTable()({C, Bout}) --(#batch, hidsz)
-        hid[h] = nonlin()(D) --(#batch, hidsz)
+        
+        --local C = nn.LinearNB(g_opts.hidsz, g_opts.hidsz)(hid[h-1]) --(#batch, hidsz)
+        --share('proj', C)
+        --local D = nn.CAddTable()({C, Bout}) --(#batch, hidsz)
+        --hid[h] = nonlin()(D) --(#batch, hidsz)
+        hid[h] = Bout
     end
     return hid
 end
@@ -90,10 +94,10 @@ local function build_model_memnn()
     local context  = nn.Linear(in_dim, g_opts.hidsz)(new_obs) --(#batch, hidsz)
 
     local hid = build_memory(input, context)
-    local answer = nn.LinearNB(g_opts.hidsz,g_opts.hidsz)(hid[#hid])
+    local context_prime = nn.LinearNB(g_opts.hidsz,g_opts.hidsz)(context)
     --local hid = temp[1]
     --local Bout = temp[2]
-    local output = nn.CAddTable()({answer, context})
+    local output = nn.CAddTable()({hid[#hid], context_prime})
     return {input, new_obs}, {output}
     
 end
@@ -140,7 +144,6 @@ function g_build_model()
         end
     end
 
-
     return model
 end
 
@@ -151,5 +154,6 @@ function g_init_model()
         g_paramx:normal(0, g_opts.init_std)
     end
     g_bl_loss = nn.MSECriterion()
+    g_entropy_loss = nn.Entropy()
 end
 

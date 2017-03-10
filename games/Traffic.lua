@@ -79,7 +79,7 @@ function Traffic:add_agent()
         agent.src_id = src_id
         agent.route = route
         agent.route_pos = 1
-        agent.attr.route = 'route' .. ri
+        agent.attr._route = 'route' .. ri
         self.map:add_item(agent)
         table.insert(self.agents_active, agent)        
         -- agent.attr._ascii = agent.attr._ind .. ri
@@ -101,6 +101,37 @@ function Traffic:update()
     for _, agent in pairs(self.agents_active) do
         agent.t = agent.t + 1
 
+        
+        local src = self.source_locs[agent.src_id]
+        local reach_some_dst = false
+        for route_id = 1, #src.routes do
+            
+            local dst = self.routes[route_id][#self.routes[route_id]]
+            if agent.loc.y == dst.y and agent.loc.x == dst.x then
+                reach_some_dst = true
+                if agent.route[#agent.route].y == dst.y and agent.route[#agent.route].x == dst.x then
+                    agent.success_pass = agent.success_pass + 1
+                    self.success_pass = self.success_pass + 1
+                else
+                    agent.success_pass = agent.success_pass - 1
+                    self.success_pass = self.success_pass - 1
+                end
+                agent.attr._invisible = true
+                agent.active = false
+                table.insert(self.agents_inactive, agent)
+                self.map:remove_item(agent)
+                agent.loc.y = 1
+                agent.loc.x = 1
+                self.map:add_item(agent)
+            end
+        end
+        if reach_some_dst == false then 
+            table.insert(t, agent)
+        end
+        
+        --[[
+        
+        
         local dst = agent.route[#agent.route]
         if agent.loc.y == dst.y and agent.loc.x == dst.x then
             agent.success_pass = agent.success_pass + 1
@@ -115,6 +146,9 @@ function Traffic:update()
         else
             table.insert(t, agent)
         end
+        --]]
+        
+        
     end
     self.agents_active = t
 
@@ -124,10 +158,10 @@ function Traffic:get_reward(is_last)
 
     local r = 0
     r = r - self.agent.success_pass * self.costs.pass
-    --r = r - self.agent.ncollision * self.costs.collision
+    r = r - self.agent.ncollision * self.costs.collision
     --r = r - self.agent.t * self.costs.wait
     --r = r - self.costs.wait
-    r = r - self:ManhattanDis2dst() * self.costs.distance
+    --r = r - self:ManhattanDis2dst() * self.costs.distance
     return r
 end
 

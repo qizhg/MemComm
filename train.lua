@@ -2,6 +2,7 @@
 
 require'optim'
 
+
 function train_batch()
 	---get a new game
 	local batch = batch_init(g_opts.batch_size)
@@ -60,6 +61,7 @@ function train_batch()
         end
 
         action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
+
         
        
         batch_act(batch, action[t], active[t])
@@ -75,6 +77,7 @@ function train_batch()
     
     g_paramdx:zero()
     local reward_sum = torch.Tensor(#batch):zero() --running reward sum
+
     for t = g_opts.max_steps, 1, -1 do
         reward_sum:add(reward[t])
 
@@ -97,7 +100,6 @@ function train_batch()
         local new_obs = obs[t]:clone() --(#batch, in_dim)
 
 
-        local out
         if g_opts.memsize >0 then 
             out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
         else
@@ -138,6 +140,7 @@ function train(N)
     local threashold = 65
 	
     for n = 1, N do
+        g_n = n
         local stat = {} --for the epoch
 		for k=1, g_opts.nbatches do
 			local s = train_batch() --get g_paramx, g_paramdx

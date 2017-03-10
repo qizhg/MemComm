@@ -9,8 +9,8 @@ if not g_opts then g_opts = {} end
 
 g_opts.multigames = {}
 
-local mapH = torch.Tensor{17,17,17,17,1}
-local mapW = torch.Tensor{17,17,17,17,1}
+local mapH = torch.Tensor{11,11,11,11,1}
+local mapW = torch.Tensor{11,11,11,11,1}
 
 -------------------
 --some shared StaticOpts
@@ -19,8 +19,8 @@ local sso = {}
 sso.costs = {}
 sso.costs.goal = 0
 sso.costs.step = 0
-sso.costs.pass = -10
-sso.costs.collision = 1
+sso.costs.pass = -1
+sso.costs.collision = 0.01
 sso.costs.wait = 0.01
 sso.costs.distance = 0.1
 ---------------------
@@ -47,6 +47,6 @@ local CrossingEasyOpts ={}
 CrossingEasyOpts.RangeOpts = CrossingEasyRangeOpts
 CrossingEasyOpts.StaticOpts = CrossingEasyStaticOpts
 
-g_opts.multigames.CrossingEasy = CrossingEasyOpts
+g_opts.multigames.CrossingEasyIndicator = CrossingEasyOpts
 
 return g_opts

@@ -13,6 +13,7 @@ paths.dofile('batch.lua')
 -- for traffic games
 paths.dofile('Traffic.lua')
 paths.dofile('Crossing.lua')
+paths.dofile('CrossingEasyIndicator.lua')
 paths.dofile('CrossingEasy.lua')
 --paths.dofile('CrossingHard.lua')
 
@@ -34,6 +35,8 @@ local function init_game_opts()
     local helpers = {}
     games.Crossing = Crossing
     helpers.Crossing = OptsHelper
+    games.CrossingEasyIndicator = CrossingEasyIndicator
+    helpers.CrossingEasyIndicator = OptsHelper
     games.CrossingEasy = CrossingEasy
     helpers.CrossingEasy = OptsHelper
     games.CrossingHard = CrossingHard
@@ -80,7 +83,7 @@ function g_init_vocab()
     --end
 
     --route
-    for i = 1, 3 do
+    for i = 1, 2 do
         vocab_add('route' .. i)
     end
 
