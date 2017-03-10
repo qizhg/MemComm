@@ -20,9 +20,10 @@ local sso = {}
 sso.costs = {}
 sso.costs.goal = 0
 sso.costs.step = 0
-sso.costs.pass = 10
-sso.costs.collision = 0.1
+sso.costs.pass = -10
+sso.costs.collision = 1
 sso.costs.wait = 0.01
+sso.costs.distance = 0.1
 ---------------------
 sso.visibility = g_opts.visibility
 sso.nagents = g_opts.nagents

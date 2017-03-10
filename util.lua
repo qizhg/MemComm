@@ -169,6 +169,15 @@ function g_save_model()
     end
 end
 
+function g_save_data()
+    if g_opts.save ~= '' then
+        f = {opts=g_opts,log=g_logs}
+        --if g_optim_state then f['optim_state'] = g_optim_state end
+        torch.save(g_opts.save, f)
+        --print('model saved to ', g_opts.save)
+    end
+end
+
 function plot_reward()
     local x = torch.zeros(#g_log)
     for i = 1, #g_log do

@@ -55,7 +55,8 @@ function Traffic:add_agent()
     end
     
     --local src = self.source_locs[torch.random(#self.source_locs)]
-    local src = self.source_locs[torch.random(1)]
+    local src_id = torch.random(1)
+    local src = self.source_locs[src_id]
     
     if #self.agents_active >= self.max_agents then
         return
@@ -75,6 +76,7 @@ function Traffic:add_agent()
         agent.active = true
         agent.attr._invisible = false
         agent.t = 0
+        agent.src_id = src_id
         agent.route = route
         agent.route_pos = 1
         agent.attr.route = 'route' .. ri
@@ -99,14 +101,6 @@ function Traffic:update()
     for _, agent in pairs(self.agents_active) do
         agent.t = agent.t + 1
 
-        if #self.map.items[agent.loc.y][agent.loc.x] > 1 then
-            agent.attr._ascii0 = agent.attr._ascii0 or agent.attr._ascii
-            agent.attr._ascii = 'XX'
-            agent.ncollision = agent.ncollision + 0.5
-            self.ncollision = self.ncollision + 0.5
-            self.ncollision_total = self.ncollision_total + 0.5
-        end
-
         local dst = agent.route[#agent.route]
         if agent.loc.y == dst.y and agent.loc.x == dst.x then
             agent.success_pass = agent.success_pass + 1
@@ -129,13 +123,19 @@ end
 function Traffic:get_reward(is_last)
 
     local r = 0
-    if self:is_active() == false then 
-        return r
-    end
     r = r - self.agent.success_pass * self.costs.pass
-    r = r - self.agent.ncollision * self.costs.collision
-    r = r - self.agent.t * self.costs.wait
+    --r = r - self.agent.ncollision * self.costs.collision
+    --r = r - self.agent.t * self.costs.wait
+    --r = r - self.costs.wait
+    r = r - self:ManhattanDis2dst() * self.costs.distance
     return r
+end
+
+function Traffic:ManhattanDis2dst()
+    local agent = self.agent
+    local dst = agent.route[#agent.route]
+    local Mdistance = math.abs(agent.loc.y - dst.y) + math.abs(agent.loc.x - dst.x)
+    return Mdistance
 end
 
 function Traffic:is_active()
@@ -143,7 +143,7 @@ function Traffic:is_active()
 end
 
 function Traffic:is_success()
-    if self.agent.success_pass == 0 then
+    if self.agent.success_pass < 1 then
         return false
     else
         return true

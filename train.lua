@@ -19,9 +19,9 @@ function train_batch()
 
 
     --play the game (forward pass)
-    --local game = batch[1]
-    --local agent = game.agent
-    --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
+    local game = batch[1]
+    local agent = game.agent
+    --print('agent start: '..agent.loc.y..'  '..agent.loc.x)
     --print('des: '..agent.route[#agent.route].y..'  '..agent.route[#agent.route].x)
     
     for t = 1, g_opts.max_steps do
@@ -44,21 +44,21 @@ function train_batch()
         
 
         --forward input to get output = {action_logprob, baseline}
-        local out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
+        local out
+        if g_opts.memsize >0 then 
+            out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
+        else
+            out = g_model:forward(new_obs)
+        end
+
         action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
         
-        --print('attention: ')
-        --print(out[3][1])
-        
-        --act & update
+       
         batch_act(batch, action[t], active[t])
-        --print('action:'..agent.action_names[action[t][1][1]])
-        --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
         batch_update(batch, active[t])
-
-        --get reward
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
+    --print('agent end: '..agent.loc.y..'  '..agent.loc.x)
     local success = batch_success(batch)
     --print(success[1])
 
@@ -81,7 +81,12 @@ function train_batch()
         end
         mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
 
-        local out = g_model:forward({mem_input, new_obs})
+        local out
+        if g_opts.memsize >0 then 
+            out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
+        else
+            out = g_model:forward(new_obs)
+        end
 
         --compute grad baseline
         local baseline = out[2] --(#batch, 1)
@@ -112,9 +117,6 @@ function train_batch()
 end
 
 function train(N)
-	--N: number of epochs
-	--nbatches: number of batches in an epoch
-	--batch_size: number of games in a batch
 
     to_update= true
 	
@@ -137,10 +139,6 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
-        --if stat.success > 0.65 then
-        --    g_save_model()
-        --    to_update =false
-        --end
         stat.epoch = #g_log + 1
         print(format_stat(stat))
         table.insert(g_log, stat)

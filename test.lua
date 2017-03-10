@@ -1,5 +1,5 @@
 
---torch.manualSeed(45)
+--torch.manualSeed(451)
 torch.setdefaulttensortype('torch.FloatTensor')
 paths.dofile('util.lua')
 paths.dofile('model.lua')
@@ -10,36 +10,28 @@ require'gnuplot'
 
 local cmd = torch.CmdLine()
 -- model parameters
-cmd:option('--model', 'mlp', 'module type: mlp | rnn | lstm')
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 0, 'memorize the last 3 time steps')
+cmd:option('--memsize', 10, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
-cmd:option('--init_hid', 0.1, 'initial value of internal state')
-cmd:option('--unshare_hops', false, 'not share weights of different hops')
-cmd:option('--encoder_lut', false, 'use LookupTable in encoder instead of Linear')
-cmd:option('--encoder_lut_size', 50, 'max items in encoder LookupTable')
-cmd:option('--unroll', 10, 'unroll steps for recurrent model. 0 means full unrolling.')
-cmd:option('--unroll_freq', 4, 'unroll after every several steps')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
-cmd:option('--max_steps', 50, 'force to end the game after this many steps')
+cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
-cmd:option('--game', '', 'can specify a single game')
 cmd:option('--visibility', 1, 'vision range of agents')
 -- training parameters
-cmd:option('--optim', 'adam', 'optimization method: rmsprop | sgd | adam')
+cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
 cmd:option('--lrate', 1e-3, 'learning rate')
-cmd:option('--max_grad_norm', 0, 'gradient clip value')
-cmd:option('--clip_grad', 0, 'gradient clip value')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 cmd:option('--epochs', 150, 'the number of training epochs')
 cmd:option('--nbatches', 50, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--batch_size', 10, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
+cmd:option('--max_grad_norm', 0, 'gradient clip value')
+cmd:option('--clip_grad', 0, 'gradient clip value')
 -- for optim
 cmd:option('--momentum', 0, 'momentum for SGD')
 cmd:option('--wdecay', 0, 'weight decay for SGD')
@@ -48,26 +40,9 @@ cmd:option('--rmsprop_eps', 1e-6, 'parameter of RMSProp')
 cmd:option('--adam_beta1', 0.9, 'parameter of Adam')
 cmd:option('--adam_beta2', 0.999, 'parameter of Adam')
 cmd:option('--adam_eps', 1e-8, 'parameter of Adam')
--- continuous communication with CommNet
-cmd:option('--comm', false, 'enable continuous communication (CommNet)')
-cmd:option('--comm_mode', 'avg', 'operation on incoming communication: avg | sum')
-cmd:option('--comm_scale_div', 1, 'divide comm vectors by this')
-cmd:option('--comm_encoder', 0, 'encode incoming comm: 0=identity | 1=linear')
-cmd:option('--comm_decoder', 1, 'decode outgoing comm: 0=identity | 1=linear | 2=nonlin')
-cmd:option('--comm_zero_init', false, 'initialize comm weights to zero')
-cmd:option('--comm_range', 0, 'disable comm if L0 distance is greater than range')
--- discrete communication and other baselines
-cmd:option('--nactions_comm', 1, 'enable discrete communication when larger than 1')
-cmd:option('--dcomm_entropy_cost', 0, 'entropy regularization for discrete communication')
-cmd:option('--fully_connected', false, 'use fully-connected model for all agents')
 --other
-cmd:option('--save', '65_model', 'file name to save the model')
-cmd:option('--load', '65_model', 'file name to load the model')
-cmd:option('--show', false, 'show progress')
-cmd:option('--no_coop', false, 'agents are NOT cooperative')
-cmd:option('--plot', false, 'plot average reward during training')
-cmd:option('--curriculum_sta', 0, 'start making harder after this many epochs')
-cmd:option('--curriculum_end', 0, 'when to make the game hardest')
+cmd:option('--save', '', 'file name to save the model')
+cmd:option('--load', '', 'file name to load the model')
 
 g_opts = cmd:parse(arg or {})
 
@@ -78,122 +53,3 @@ g_factory.vocab = g_vocab
 g_init_model()
 g_log = {}
 train(g_opts.epochs)
-
---[[
-num_of_experiments = 40
-----------memsize 0------
-g_opts.memsize = 10
-g_init_model()
-g_logs = {}
-for i = 1, num_of_experiments do
-	print('mem1 '..i)
-	if g_opts.init_std > 0 then
-        g_paramx:normal(0, g_opts.init_std)
-    end
-	g_log = {}
-	train(g_opts.epochs)
-	g_logs[i] = g_log
-end
-
-
-
-x = torch.rand(g_opts.epochs)
-for n = 1, g_opts.epochs do
-	x[n]=n
-end
-
-y1 = torch.rand(g_opts.epochs,num_of_experiments)
-for i = 1, num_of_experiments do
-	for n = 1, g_opts.epochs do
-		y1[n][i] = g_logs[i][n].success
-	end
-end
-
-
-y1_mean = torch.mean(y1,2)
-y1_err = torch.std(y1,2) / torch.sqrt(num_of_experiments)
-y1_mean = torch.squeeze(y1_mean)
-y1_err = torch.squeeze(y1_err)
-y1_high = y1_mean + y1_err
-y1_low = y1_mean - y1_err
-yy1 = torch.cat(x,y1_low,2)
-yy1 = torch.cat(yy1,y1_high,2)
-
-----------memsize 5------
-g_opts.memsize = 5
-g_init_model()
-g_logs = {}
-for i = 1, num_of_experiments do
-	print('mem5 '..i)
-
-	if g_opts.init_std > 0 then
-        g_paramx:normal(0, g_opts.init_std)
-    end
-	g_log = {}
-	train(g_opts.epochs)
-	g_logs[i] = g_log
-end
-
-y5 = torch.rand(g_opts.epochs,num_of_experiments)
-for i = 1, num_of_experiments do
-	for n = 1, g_opts.epochs do
-		y5[n][i] = g_logs[i][n].success
-	end
-end
-
-y5_mean = torch.mean(y5,2)
-y5_err = torch.std(y5,2) / torch.sqrt(num_of_experiments)
-y5_mean = torch.squeeze(y5_mean)
-y5_err = torch.squeeze(y5_err)
-y5_high = y5_mean + y5_err
-y5_low = y5_mean - y5_err
-yy5 = torch.cat(x,y5_low,2)
-yy5 = torch.cat(yy5,y5_high,2)
-
-----------memsize 10------
-g_opts.memsize = 10
-g_init_model()
-g_logs = {}
-for i = 1, num_of_experiments do
-	print('mem10 '..i)
-
-	if g_opts.init_std > 0 then
-        g_paramx:normal(0, g_opts.init_std)
-    end
-	g_log = {}
-	train(g_opts.epochs)
-	g_logs[i] = g_log
-end
-
-y10 = torch.rand(g_opts.epochs,num_of_experiments)
-for i = 1, num_of_experiments do
-	for n = 1, g_opts.epochs do
-		y10[n][i] = g_logs[i][n].success
-	end
-end
-
-y10_mean = torch.mean(y10,2)
-y10_err = torch.std(y10,2) / torch.sqrt(num_of_experiments)
-y10_mean = torch.squeeze(y10_mean)
-y10_err = torch.squeeze(y10_err)
-y10_high = y10_mean + y10_err
-y10_low = y10_mean - y10_err
-yy10 = torch.cat(x,y10_low,2)
-yy10 = torch.cat(yy10,y10_high,2)
-
---plot
-gnuplot.pngfigure('16by16.png')
-gnuplot.plot(
-	{yy1,'with filledcurves fill transparent solid 0.2 ls 1'},
-	{'memory size=0',x,y1_mean,'with lines ls 1'},
-	{yy5,'with filledcurves fill transparent solid 0.2 ls 2'},
-	{'memory size=5',x,y5_mean,'with lines ls 2'},
-	{yy10,'with filledcurves fill transparent solid 0.2 ls 3'},
-	{'memory size=10',x,y10_mean,'with lines ls 3'}
-	)
-gnuplot.xlabel('epochs(1 epoch = 100 episodes)')
-gnuplot.ylabel('success rate')
-gnuplot.plotflush()
-
-
---]]
