@@ -170,7 +170,7 @@ function g_save_model()
 end
 
 function g_save_data()
-    if g_opts.save ~= '' then
+    if g_opts.savedata ~= '' then
         f = {opts=g_opts,log=g_logs}
         --if g_optim_state then f['optim_state'] = g_optim_state end
         torch.save(g_opts.save, f)

@@ -8,10 +8,9 @@
 if not g_opts then g_opts = {} end
 
 g_opts.multigames = {}
-g_opts.max_attributes = 5 --?
 
-local mapH = torch.Tensor{16,16,16,16,1}
-local mapW = torch.Tensor{16,16,16,16,1}
+local mapH = torch.Tensor{17,17,17,17,1}
+local mapW = torch.Tensor{17,17,17,17,1}
 
 -------------------
 --some shared StaticOpts
@@ -25,25 +24,29 @@ sso.costs.collision = 1
 sso.costs.wait = 0.01
 sso.costs.distance = 0.1
 ---------------------
+sso.crumb_action = 0
+sso.push_action = 0
+sso.flag_visited = 0
+sso.enable_boundary = 0
+sso.enable_corners = 0
+sso.add_block = false
 sso.visibility = g_opts.visibility
 sso.nagents = g_opts.nagents
-sso.max_agents = g_opts.nagents
-sso.max_attributes = g_opts.max_attributes
 
 -------------------------------------------------------
-local CrossingRangeOpts = {}
-CrossingRangeOpts.mapH = mapH:clone()
-CrossingRangeOpts.mapW = mapW:clone()
-CrossingRangeOpts.add_rate = torch.Tensor{0.05,0.05,0.05,0.2,0.01}
+local CrossingEasyRangeOpts = {}
+CrossingEasyRangeOpts.mapH = mapH:clone()
+CrossingEasyRangeOpts.mapW = mapW:clone()
+CrossingEasyRangeOpts.add_rate = torch.Tensor{0.1,0.1,0.1,0.3,0.01}
+CrossingEasyRangeOpts.max_agents = torch.Tensor{3,3,3,g_opts.nagents,1}
 
+local CrossingEasyStaticOpts = {}
+for i,j in pairs(sso) do CrossingEasyStaticOpts[i] = j end
 
-local CrossingStaticOpts = {}
-for i,j in pairs(sso) do CrossingStaticOpts[i] = j end
+local CrossingEasyOpts ={}
+CrossingEasyOpts.RangeOpts = CrossingEasyRangeOpts
+CrossingEasyOpts.StaticOpts = CrossingEasyStaticOpts
 
-local CrossingOpts ={}
-CrossingOpts.RangeOpts = CrossingRangeOpts
-CrossingOpts.StaticOpts = CrossingStaticOpts
-
-g_opts.multigames.Crossing = CrossingOpts
+g_opts.multigames.CrossingEasy = CrossingEasyOpts
 
 return g_opts

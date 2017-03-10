@@ -13,7 +13,7 @@ paths.dofile('batch.lua')
 -- for traffic games
 paths.dofile('Traffic.lua')
 paths.dofile('Crossing.lua')
---paths.dofile('CrossingEasy.lua')
+paths.dofile('CrossingEasy.lua')
 --paths.dofile('CrossingHard.lua')
 
 -- for combat games
@@ -65,6 +65,12 @@ function g_init_vocab()
     vocab_add('nil')
     vocab_add('agent')
     vocab_add('block')
+
+    --time features
+    --for t = 1, g_opts.memsize do
+    --    vocab_add('mem' .. t)
+    --end
+
 
     -- absolute coordinates
     --for y = 1, 8 do

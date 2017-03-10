@@ -22,9 +22,9 @@ end
 
 
 local function build_lookup_bow(context, input, hop)
-   --input: (#batch, memsize, in_dim)
+   --input: (#batch, memsize, in_dim + memsize)
    --context (#batch, hidsz)
-    local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
+    local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords + g_opts.memsize
 
     local A_in_table = {}
     local B_in_table = {}
@@ -90,9 +90,10 @@ local function build_model_memnn()
     local context  = nn.Linear(in_dim, g_opts.hidsz)(new_obs) --(#batch, hidsz)
 
     local hid = build_memory(input, context)
+    local answer = nn.LinearNB(g_opts.hidsz,g_opts.hidsz)(hid[#hid])
     --local hid = temp[1]
     --local Bout = temp[2]
-    local output = nn.CAddTable()({hid[#hid], context})
+    local output = nn.CAddTable()({answer, context})
     return {input, new_obs}, {output}
     
 end

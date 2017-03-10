@@ -25,21 +25,29 @@ function train_batch()
     --print('des: '..agent.route[#agent.route].y..'  '..agent.route[#agent.route].x)
     
     for t = 1, g_opts.max_steps do
+
         --get active games
         active[t] = batch_active(batch)
     	--get the latest observation
     	obs[t] = batch_obs(batch,active[t])
         --get input
-        local mem_input = torch.Tensor(math.max(1,g_opts.memsize), #batch, in_dim)
-        mem_input:fill(0)
-        local new_obs = obs[t]:clone() --(#batch, in_dim)
-        if g_opts.memsize > 0 and t > 1 then 
-            local mem_start, mem_end
-            mem_start = math.max(1, t - g_opts.memsize)
-            mem_end = math.max(1, t - 1)
-            mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        local mem_input
+        if g_opts.memsize > 0 then 
+            mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
+            mem_input:fill(0)
+            if g_opts.memsize > 0 and t > 1 then 
+                local mem_start, mem_end
+                mem_start = math.max(1, t - g_opts.memsize)
+                mem_end = math.max(1, t - 1)
+                mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+            end
+            mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+            local time_feature = torch.Tensor(#batch, g_opts.memsize, g_opts.memsize)
+            for i = 1, #batch do time_feature[i] = torch.eye(g_opts.memsize) end
+            mem_input = torch.cat(mem_input,time_feature,3) --(#batch, memsize, in_dim+memsize)
         end
-        mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+        local new_obs = obs[t]:clone() --(#batch, in_dim)
+
 
         
 
@@ -55,6 +63,7 @@ function train_batch()
         
        
         batch_act(batch, action[t], active[t])
+        --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
         batch_update(batch, active[t])
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
@@ -70,16 +79,23 @@ function train_batch()
         reward_sum:add(reward[t])
 
         --do step forward
-        local mem_input = torch.Tensor(math.max(1,g_opts.memsize), #batch, in_dim)
-        mem_input:fill(0)
-        local new_obs = obs[t]:clone() --(#batch, in_dim)
-        if g_opts.memsize> 0 and t> 1 then 
-            local mem_start, mem_end
-            mem_start = math.max(1, t - g_opts.memsize)
-            mem_end = math.max(1, t - 1)
-            mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+        local mem_input
+        if g_opts.memsize > 0 then 
+            mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
+            mem_input:fill(0)
+            if g_opts.memsize > 0 and t > 1 then 
+                local mem_start, mem_end
+                mem_start = math.max(1, t - g_opts.memsize)
+                mem_end = math.max(1, t - 1)
+                mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
+            end
+            mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+            local time_feature = torch.Tensor(#batch, g_opts.memsize, g_opts.memsize)
+            for i = 1, #batch do time_feature[i] = torch.eye(g_opts.memsize) end
+            mem_input = torch.cat(mem_input,time_feature,3) --(#batch, memsize, in_dim+memsize)
         end
-        mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
+        local new_obs = obs[t]:clone() --(#batch, in_dim)
+
 
         local out
         if g_opts.memsize >0 then 
@@ -118,7 +134,8 @@ end
 
 function train(N)
 
-    to_update= true
+    local to_update= true
+    local threashold = 65
 	
     for n = 1, N do
         local stat = {} --for the epoch
@@ -139,6 +156,12 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
+        if stat.success > threashold/100.0 then 
+            g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
+            g_save_model()
+            threashold  = threashold + 10
+        end
+
         stat.epoch = #g_log + 1
         print(format_stat(stat))
         table.insert(g_log, stat)

@@ -124,7 +124,7 @@ function MazeBase:to_sentence(sentence)
     return sentence
 end
 
-function MazeBase:get_visible_state(data, use_lut)
+function MazeBase:get_visible_state(data)
     for dy = -self.visibility, self.visibility do
         for dx = -self.visibility, self.visibility do
             local y = self.agent.loc.y + dy
