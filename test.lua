@@ -12,7 +12,7 @@ local cmd = torch.CmdLine()
 -- model parameters
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 10, 'memorize the last 3 time steps')
+cmd:option('--memsize', 0, 'memorize the last 3 time steps')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 -- game parameters
@@ -53,7 +53,7 @@ g_factory.vocab = g_vocab
 
 g_log = {}
 g_init_model()
-g_load_model()
+--g_load_model()
 train(g_opts.epochs)
 
 
