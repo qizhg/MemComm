@@ -12,13 +12,13 @@ local cmd = torch.CmdLine()
 -- model parameters
 cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 6, 'memorize the last 3 time steps')
-cmd:option('--nonlin', 'none', 'non-linearity type: tanh | relu | none')
+cmd:option('--memsize', 10, 'memorize the last 3 time steps')
+cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 -- game parameters
 cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
-cmd:option('--max_steps', 7, 'force to end the game after this many steps')
+cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing_easy_indicator.lua', 'configuration file for games')
 cmd:option('--visibility', 1, 'vision range of agents')
 -- training parameters
@@ -43,7 +43,7 @@ cmd:option('--adam_beta2', 0.999, 'parameter of Adam')
 cmd:option('--adam_eps', 1e-8, 'parameter of Adam')
 --other
 cmd:option('--save', '', 'file name to save the model')
-cmd:option('--load', '', 'file name to load the model')
+cmd:option('--load', 'mem10at95', 'file name to load the model')
 
 g_opts = cmd:parse(arg or {})
 
@@ -53,7 +53,7 @@ g_factory.vocab = g_vocab
 
 g_log = {}
 g_init_model()
---g_load_model()
+g_load_model()
 train(g_opts.epochs)
 
 

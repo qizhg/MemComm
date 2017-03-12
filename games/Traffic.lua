@@ -62,6 +62,7 @@ function Traffic:add_agent()
         return
     end
     local ri = src.routes[torch.random(#src.routes)]
+    self:place_item({type = 'route'..ri}, self.length + 1, self.length + 1)
     local route = self.routes[ri]
     if torch.uniform() < self.add_rate then
         if #self.agents_inactive == 0 then
@@ -101,12 +102,12 @@ function Traffic:update()
     for _, agent in pairs(self.agents_active) do
         agent.t = agent.t + 1
 
-        
+        --[[
         local src = self.source_locs[agent.src_id]
         local reach_some_dst = false
         for route_id = 1, #src.routes do
             
-            local dst = self.routes[route_id][#self.routes[route_id]]
+            local dst = self.routes[route_id][#self.routes[route_id]
             if agent.loc.y == dst.y and agent.loc.x == dst.x then
                 reach_some_dst = true
                 if agent.route[#agent.route].y == dst.y and agent.route[#agent.route].x == dst.x then
@@ -128,9 +129,10 @@ function Traffic:update()
         if reach_some_dst == false then 
             table.insert(t, agent)
         end
+        --]]
         
-        --[[
         
+    
         
         local dst = agent.route[#agent.route]
         if agent.loc.y == dst.y and agent.loc.x == dst.x then
@@ -146,7 +148,7 @@ function Traffic:update()
         else
             table.insert(t, agent)
         end
-        --]]
+        
         
         
     end
@@ -157,11 +159,11 @@ end
 function Traffic:get_reward(is_last)
 
     local r = 0
-    r = r - self.agent.success_pass * self.costs.pass
-    r = r - self.agent.ncollision * self.costs.collision
+    --r = r - self.agent.success_pass * self.costs.pass
+    --r = r - self.agent.ncollision * self.costs.collision
     --r = r - self.agent.t * self.costs.wait
-    --r = r - self.costs.wait
-    --r = r - self:ManhattanDis2dst() * self.costs.distance
+    r = r - self.costs.wait
+    r = r - self:ManhattanDis2dst() * self.costs.distance
     return r
 end
 

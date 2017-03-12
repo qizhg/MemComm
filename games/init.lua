@@ -83,7 +83,7 @@ function g_init_vocab()
     --end
 
     --route
-    for i = 1, 2 do
+    for i = 1, 3 do
         vocab_add('route' .. i)
     end
 

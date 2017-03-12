@@ -22,8 +22,8 @@ function train_batch()
     --play the game (forward pass)
     local game = batch[1]
     local agent = game.agent
-    --print('agent start: '..agent.loc.y..'  '..agent.loc.x)
-    --print('des: '..agent.route[#agent.route].y..'  '..agent.route[#agent.route].x)
+    print('agent start: '..agent.loc.y..'  '..agent.loc.x)
+    print('des: '..agent.route[#agent.route].y..'  '..agent.route[#agent.route].x)
     
     for t = 1, g_opts.max_steps do
 
@@ -65,11 +65,12 @@ function train_batch()
         
        
         batch_act(batch, action[t], active[t])
-        --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
+        print('agent at: '..agent.loc.y..'  '..agent.loc.x)
         batch_update(batch, active[t])
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
     end
-    --print('agent end: '..agent.loc.y..'  '..agent.loc.x)
+    print('agent end: '..agent.loc.y..'  '..agent.loc.x)
+    local temp = io.read("*n")
     local success = batch_success(batch)
     --print(success[1])
 
@@ -137,7 +138,7 @@ end
 function train(N)
 
     local to_update= true
-    local threashold = 65
+    local threashold = 35
 	
     for n = 1, N do
         g_n = n

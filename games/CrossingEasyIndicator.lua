@@ -34,28 +34,26 @@ function CrossingEasy:build_roads()
         self:place_item({type = 'block'}, self.length + 2, x)
     end
 
-    self:place_item({type = 'block'}, self.length + 2, self.length + 1)
+    --self:place_item({type = 'block'}, self.length + 2, self.length + 1)
     self:place_item({type = 'block'}, self.length , self.length + 1)
     table.insert(self.source_locs, {y = self.length + 1, x = self.length + 1, routes = {}})
 
-    local dst_id = torch.random(2)
-    self:place_item({type = 'route'..dst_id}, self.length + 1, self.length + 1)
-    if dst_id == 1 then 
+    --if dst_id == 1 then 
         r = {}
         table.insert(r, {y = self.length + 1, x =self.map.width})
         table.insert(self.routes, r)
         table.insert(self.source_locs[1].routes, #self.routes)
-    elseif  dst_id == 2 then 
+    --elseif  dst_id == 2 then 
         r = {}
         table.insert(r, {y = self.length + 1, x =1})
         table.insert(self.routes, r)
         table.insert(self.source_locs[1].routes, #self.routes)
-    else  
+    --else  
         r = {}
         table.insert(r, {y = self.map.height, x = self.length + 1})
         table.insert(self.routes, r)
         table.insert(self.source_locs[1].routes, #self.routes)
-    end
+    --end
     --print(#self.routes)
    
 end
