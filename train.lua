@@ -66,8 +66,9 @@ function train_batch()
        
         batch_act(batch, action[t], active[t])
         --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
-        batch_update(batch, active[t])
         reward[t] = batch_reward(batch, active[t]) --(#batch, )
+        batch_update(batch, active[t])
+        --print(reward[t][1])
     end
     --print('agent end: '..agent.loc.y..'  '..agent.loc.x)
     --local temp = io.read("*n")
@@ -138,7 +139,7 @@ end
 function train(N)
 
     local to_update= true
-    local threashold = 35
+    local threashold = 95
 	
     for n = 1, N do
         g_n = n
@@ -160,11 +161,11 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
-        if stat.success > threashold/100.0 then 
-            g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
-            g_save_model()
-            threashold  = threashold + 10
-        end
+        --if stat.success > threashold/100.0 then 
+        --    g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
+        --    g_save_model()
+        --    threashold  = threashold + 10
+        --end
 
         stat.epoch = #g_log + 1
         print(format_stat(stat))
