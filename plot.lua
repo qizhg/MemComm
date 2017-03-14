@@ -1,10 +1,10 @@
 
 require'gnuplot'
 
-
-local f = torch.load('data/mem0data')
+local f = torch.load('eps/mem10epsdatatotal')
 g_logs = f.log
 epochs = #g_logs[1]
+
 num_of_experiments = #g_logs
 x1 = torch.rand(epochs)
 for n = 1, epochs do
@@ -28,9 +28,10 @@ yy1 = torch.cat(x1,y1_low,2)
 yy1 = torch.cat(yy1,y1_high,2)
 
 -------------------------------------------------
-local f = torch.load('data/mem10data')
+local f = torch.load('4arm/mem10data')
 g_logs = f.log
 epochs = #g_logs[1]
+
 num_of_experiments = #g_logs
 
 x10 = torch.rand(epochs)
@@ -59,10 +60,11 @@ yy10 = torch.cat(yy10,y10_high,2)
 gnuplot.pngfigure('11by11.png')
 gnuplot.plot(
 	{yy1,'with filledcurves fill transparent solid 0.2 ls 1'},
-	{'memory size=0',x1,y1_mean,'with lines ls 1'},
+	{'memory size=10,eps',x1,y1_mean,'with lines ls 1'},
 	{yy10,'with filledcurves fill transparent solid 0.2 ls 3'},
 	{'memory size=10',x10,y10_mean,'with lines ls 3'}
 	)
 gnuplot.xlabel('epochs(1 epoch = 500 episodes)')
 gnuplot.ylabel('success rate')
 gnuplot.plotflush()
+--]]

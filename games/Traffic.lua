@@ -159,11 +159,11 @@ end
 function Traffic:get_reward(is_last)
 
     local r = 0
-    --r = r - self.agent.success_pass * self.costs.pass
-    --r = r - self.agent.ncollision * self.costs.collision
+    r = r - self.agent.success_pass * self.costs.pass
+    r = r - self.agent.ncollision * self.costs.collision
     --r = r - self.agent.t * self.costs.wait
     r = r - self.costs.wait
-    r = r - self:ManhattanDis2dst() * self.costs.distance
+    --r = r - self:ManhattanDis2dst() * self.costs.distance
     return r
 end
 

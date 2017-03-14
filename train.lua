@@ -60,14 +60,27 @@ function train_batch()
             out = g_model:forward(new_obs)
         end
 
-        action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
+        ep = g_opts.eps_start - (g_nbatches-1)*(g_opts.eps_start-g_opts.eps_end)/(g_opts.eps_end_batch-1)
+        --ep = math.max(ep, g_opts.eps_end)
+        if torch.uniform() < ep then
+            action[t] = torch.LongTensor(#batch,1)
+            action[t]:random(1, g_opts.nactions)
+        else
+            action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
+        end
+
+        
+        --if t==1 and agent.route[#agent.route].y==11 and agent.route[#agent.route].x==6 then
+        --    print(torch.exp(out[1][1]))
+        --end
 
         
        
         batch_act(batch, action[t], active[t])
         --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
-        reward[t] = batch_reward(batch, active[t]) --(#batch, )
         batch_update(batch, active[t])
+        reward[t] = batch_reward(batch, active[t]) --(#batch, )
+
         --print(reward[t][1])
     end
     --print('agent end: '..agent.loc.y..'  '..agent.loc.x)
@@ -139,12 +152,12 @@ end
 function train(N)
 
     local to_update= true
-    local threashold = 95
+    local threashold = 70
 	
     for n = 1, N do
-        g_n = n
         local stat = {} --for the epoch
-		for k=1, g_opts.nbatches do
+		for k = 1, g_opts.nbatches do
+            g_nbatches = (n-1)*g_opts.nbatches + k
 			local s = train_batch() --get g_paramx, g_paramdx
             if to_update then
                 g_update_param(g_paramx, g_paramdx)
@@ -161,14 +174,16 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
-        --if stat.success > threashold/100.0 then 
-        --    g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
-        --    g_save_model()
-        --    threashold  = threashold + 10
-        --end
+        if stat.success > threashold/100.0 then
+            --g_n_70 = g_n_70+1
+            g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
+            g_save_model()
+            threashold  = threashold + 10
+        end
 
         stat.epoch = #g_log + 1
         print(format_stat(stat))
+        print(ep)
         table.insert(g_log, stat)
 	end
 

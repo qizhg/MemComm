@@ -127,6 +127,7 @@ function g_build_model()
     output = output_table[1]
 
     local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(output)) --(#batch, hidsz)
+    --local  hid_act = output
     local action = nn.Linear(g_opts.hidsz, g_opts.nactions)(hid_act) --(#batch, nactions)
     local action_logprob = nn.LogSoftMax()(action)  --(#batch, nactions)
     local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(output))  --(#batch, hidsz)

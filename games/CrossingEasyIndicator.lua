@@ -34,8 +34,8 @@ function CrossingEasy:build_roads()
         self:place_item({type = 'block'}, self.length + 2, x)
     end
 
-    --self:place_item({type = 'block'}, self.length + 2, self.length + 1)
-    --self:place_item({type = 'block'}, self.length , self.length + 1)
+    self:place_item({type = 'block'}, self.length + 2, self.length + 1)
+    self:place_item({type = 'block'}, self.length , self.length + 1)
     table.insert(self.source_locs, {y = self.length + 1, x = self.length + 1, routes = {}})
 
     --if dst_id == 1 then 
@@ -49,15 +49,15 @@ function CrossingEasy:build_roads()
         table.insert(self.routes, r)
         table.insert(self.source_locs[1].routes, #self.routes)
     --else  
-        r = {}
-        table.insert(r, {y = self.map.height, x = self.length + 1})
-        table.insert(self.routes, r)
-        table.insert(self.source_locs[1].routes, #self.routes)
+        --r = {}
+        --table.insert(r, {y = self.map.height, x = self.length + 1})
+        --table.insert(self.routes, r)
+        --table.insert(self.source_locs[1].routes, #self.routes)
 
-        r = {}
-        table.insert(r, {y = 1, x = self.length + 1})
-        table.insert(self.routes, r)
-        table.insert(self.source_locs[1].routes, #self.routes)
+        --r = {}
+        --table.insert(r, {y = 1, x = self.length + 1})
+        --table.insert(self.routes, r)
+        --table.insert(self.source_locs[1].routes, #self.routes)
     --end
     --print(#self.routes)
    
