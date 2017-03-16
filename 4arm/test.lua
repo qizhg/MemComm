@@ -29,7 +29,7 @@ cmd:option('--beta', 0, 'coefficient of baseline term in the cost function')
 cmd:option('--eps_start', 0.2, 'eps')
 cmd:option('--eps_end', 0.05, 'eps')
 cmd:option('--eps_end_batch', 10000, 'eps')
-cmd:option('--epochs', 50, 'the number of training epochs')
+cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches',200, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
 cmd:option('--nworker', 1, 'the number of threads used for training')
@@ -62,13 +62,14 @@ g_factory.vocab = g_vocab
 
 
 ----------memsize > 0------
-local f = torch.load('mem10epsdata')
-g_logs = f.log
+--local f = torch.load('mem10epsdata')
+--g_logs = f.log
 
 num_of_experiments = 10
 g_opts.memsize = 10
 g_opts.savedata='mem10epsdata'
 g_init_model()
+g_logs = {}
 local wehave = #g_logs
 for i = 1+wehave, num_of_experiments do
 	print('mem10eps '..i)
