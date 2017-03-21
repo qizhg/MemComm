@@ -45,8 +45,6 @@ local function build_lookup_bow(context, input, hop)
     local Ain = nn.JoinTable(1)(A_in_table) --(#batch* nagents, memsize, in_dim)
     local Bin = nn.JoinTable(1)(B_in_table) --(#batch* nagents, memsize, in_dim)
     
-
-    
     local context3dim = nn.View(1, -1):setNumInputDims(1)(context) --(#batch * nagents, 1, hidsz)
     local Aout = nn.MM(false, true)({context3dim, Ain}) --(#batch* nagents, 1, memsize)
     local Aout2dim = nn.View(g_opts.batch_size*g_opts.nagents, memsize)(Aout) --(#batch * nagents, memsize)
@@ -83,6 +81,7 @@ function g_build_model()
     local prev_obs = nn.Identity()() --(#batch * nagents, memsize, in_dim)
     local cur_obs = nn.Identity()() --(#batch * nagents, in_dim)
     local comm_in = nn.Identity()() -- (#batch * nagents, nagents, hidsz)
+    g_modules['comm_in'] = comm_in.data.module
 
     --form context
     local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
@@ -119,6 +118,7 @@ end
 
 
 function g_init_model()
+    g_modules = {}
     g_model = g_build_model()
     g_paramx, g_paramdx = g_model:getParameters()
     if g_opts.init_std > 0 then

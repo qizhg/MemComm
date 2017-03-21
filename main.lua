@@ -21,7 +21,8 @@ cmd:option('--max_steps', 40, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'games/config/crossing.lua', 'configuration file for games')
 cmd:option('--visibility', 1, 'vision range of agents')
 -- comm
-cmd:option('--comm', false, 'enable continuous communication (CommNet)')
+cmd:option('--comm', true, 'enable continuous communication (CommNet)')
+--cmd:option('--comm_mode', 'avg', 'operation on incoming communication: avg | sum')
 -- training parameters
 cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
 cmd:option('--lrate', 3e-3, 'learning rate')
