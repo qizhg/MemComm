@@ -2,6 +2,7 @@
 --torch.manualSeed(451)
 torch.setdefaulttensortype('torch.FloatTensor')
 paths.dofile('mazebase/init.lua')
+paths.dofile('model/listener_model.lua')
 
 require'gnuplot'
 
@@ -47,9 +48,13 @@ cmd:option('--load', 'mem10at70', 'file name to load the model')
 g_opts = cmd:parse(arg or {})
 
 
-mazebase.init_vocab()
-mazebase.init_game()
-g = mazebase.new_game()
+g_mazebase.init_vocab()
+g_mazebase.init_game()
+g_init_listener_model()
+
+
+--[[
+g = g_mazebase.new_game()
 
 g_disp = require('display')
 g_disp.image(g.map:to_image())
@@ -59,4 +64,5 @@ g:update()
 g.listener:act(2)
 g:update()
 g_disp.image(g.map:to_image())
+--]]
 

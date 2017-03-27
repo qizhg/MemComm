@@ -36,6 +36,12 @@ sso.max_num_objects = 0 --max number of a type of object
 sso.num_symbols = 5
 sso.listener_visibility = 0
 
+-- g_opts----
+g_opts.num_symbols = sso.num_symbols
+g_opts.listener_visibility = sso.listener_visibility
+g_opts.num_types_objects = sso.num_types_objects
+g_opts.listener_nactions = 5 + 4     --moves + pickup
+
 -- JunBase:
 local JunBaseRangeOpts = {}
 JunBaseRangeOpts.mapH = mapH:clone()

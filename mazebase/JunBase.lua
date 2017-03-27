@@ -182,6 +182,10 @@ function JunBase:update()
 
 end
 
+function JunBase:listener_act(action)
+    self.listener:act(action)
+end
+
 function JunBase:get_reward()
     if self.finished then
         return -self.costs.goal
