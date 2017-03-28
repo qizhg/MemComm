@@ -13,10 +13,10 @@ local waterpct = torch.Tensor{.0,.0, 0,.2,.01}
 local sso = {}
 -------------- costs:
 sso.costs = {}
-sso.costs.goal = 0
+sso.costs.goal = -1
 sso.costs.empty = 0.1
 sso.costs.block = 1000
-sso.costs.water = 0.2
+sso.costs.water = 0.3
 sso.costs.corner = 0
 sso.costs.step = 0.1
 sso.costs.pushableblock = 1000
@@ -37,10 +37,13 @@ sso.num_symbols = 5
 sso.listener_visibility = 0
 
 -- g_opts----
+g_opts.map_height = sso.mapH[1]
+g_opts.map_width = sso.mapW[1]
 g_opts.num_symbols = sso.num_symbols
 g_opts.listener_visibility = sso.listener_visibility
 g_opts.num_types_objects = sso.num_types_objects
 g_opts.listener_nactions = 5 + 4     --moves + pickup
+g_opts.ntasks = num_types_objects*2     --moves + pickup
 
 -- JunBase:
 local JunBaseRangeOpts = {}

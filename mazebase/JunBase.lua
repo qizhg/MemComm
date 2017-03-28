@@ -20,7 +20,7 @@ function JunBase:__init(opts, vocab)
     self.max_num_objects = opts.max_num_objects
     self:add_objects()
 
-    --items tyep dict
+    --items type dict
     self.id2ItemType = {}
     self.ItemType2id = {}
     self.id2ItemType[1] =  'agent' 
@@ -33,6 +33,22 @@ function JunBase:__init(opts, vocab)
         self.id2ItemType[3+obj_id] =  'obj'.. obj_id
         self.ItemType2id['obj'.. obj_id] = 3 + obj_id
     end
+
+    --task finished dict
+    self.finished = false
+    self.num_tasks = 0 
+    self.id2task = {}
+    self.task2id = {}
+    for obj_id = 1, self.num_types_objects do
+
+        self.id2task[2*obj_id-1] = 'visit '..'obj'..obj_id
+        self.id2task[2*obj_id] = 'pickup '..'obj'..obj_id
+        self.task2id['visit '..'obj'..obj_id] = 2*obj_id-1
+        self.task2id['pickup '..'obj'..obj_id] = 2*obj_id
+
+        self.num_tasks = self.num_tasks + 2 
+    end
+    self.task_id = torch.random(1, self.num_tasks)
 end
 
 
@@ -54,45 +70,28 @@ function JunBase:add_listener_actions()
         function(self) --self for litsener
             local e = self.map:loc_pickup(self.loc.y - 1, self.loc.x)
             if e then
-                --self.map:remove_item(e)
                 e.attr.picked_up = true
-                print('pciked_up')
-                --e.loc.y = self.loc.y
-                --e.loc.x = self.loc.x
-                --self.map:add_item(e)
             end
         end)
     self.listener:add_action('pickup_down',
         function(self) --self for litsener
             local e = self.map:loc_pickup(self.loc.y + 1, self.loc.x)
             if e then
-                self.map:remove_item(e)
                 e.attr.picked_up = true
-                e.loc.y = self.loc.y
-                e.loc.x = self.loc.x
-                self.map:add_item(e)
             end
         end)
     self.listener:add_action('pickup_left',
         function(self) --self for litsener
             local e = self.map:loc_pickup(self.loc.y, self.loc.x - 1)
             if e then
-                self.map:remove_item(e)
                 e.attr.picked_up = true
-                e.loc.y = self.loc.y
-                e.loc.x = self.loc.x
-                self.map:add_item(e)
             end
         end)
     self.listener:add_action('pickup_right',
         function(self) --self for litsener
             local e = self.map:loc_pickup(self.loc.y, self.loc.x + 1)
             if e then
-                self.map:remove_item(e)
                 e.attr.picked_up = true
-                e.loc.y = self.loc.y
-                e.loc.x = self.loc.x
-                self.map:add_item(e)
             end
         end)
 end
@@ -167,18 +166,33 @@ function JunBase:to_localmap_obs(agent, visibility)
 end
 
 function JunBase:update()
-    parent.update(self) -- t = t+1, 
+    
+    parent.update(self) -- t = t+1 
+    
     --picked up items follow the listener
     for i = 1, #self.items do
         local e = self.items[i]
         if e.attr.picked_up == true then
-            print('!!!')
             self.map:remove_item(e)
             e.loc.y = self.listener.loc.y
             e.loc.x = self.listener.loc.x
             self.map:add_item(e)
         end
     end
+
+    --check for task finished
+    local task_obj_id = math.ceil(self.task_id/2)
+    local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
+    for i = 1, #items do
+        if items[i] == 'obj'.. task_obj_id then
+            if task_id % 2 == 1 and items.picked_up == false then --visit
+                self.finished = true
+            elseif task_id % 2 == 0 and items.picked_up == true then --pick_up
+                self.finished = true
+            end
+        end
+    end
+
 
 end
 
