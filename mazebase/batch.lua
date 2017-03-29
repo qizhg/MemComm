@@ -23,7 +23,19 @@ function batch_active(batch)
     return active:view(-1)
 end
 
-function batch_listener_localmap(batch, active, t)
+function batch_speaker_map(batch, active, t)
+    local num_channels = 3 + g_opts.num_types_objects * 2
+    local map = torch.Tensor(#batch, num_channels, g_opts.map_height, g_opts.map_width)    
+    map:fill(0)
+    for i, g in pairs(batch) do
+        if active[i] == 1 then
+            map[i] = g:to_fullmap_obs()
+        end
+    end
+    return map
+end
+
+function batch_listener_localmap(batch, active)
     local num_channels = 3 + g_opts.num_types_objects * 2
     local visibility = g_opts.listener_visibility
     local localmap = torch.Tensor(#batch, num_channels, visibility*2+1, visibility*2+1)
@@ -45,40 +57,19 @@ function batch_listener_act(batch, listener_action, active)
 end
 
 function batch_reward(batch, active, is_last)
-    active = active:view(#batch, g_opts.nagents)
-    local reward = torch.Tensor(#batch, g_opts.nagents):zero()
+    local reward = torch.Tensor(#batch):zero()
     for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            g.agent = g.agents[a]
-            if active[i][a] == 1 then
-                reward[i][a] = g:get_reward(is_last)
-            end
+        if active[i] == 1 then
+            reward[i] = g:get_reward(is_last)
         end
     end
     return reward:view(-1)
 end
 
 function batch_update(batch, active)
-    active = active:view(#batch, g_opts.nagents)
     for i, g in pairs(batch) do
-        for a = 1, g_opts.nagents do
-            g.agent = g.agents[a]
-            if active[i][a] == 1 then
-                g:update()
-                break
-            end
+        if active[i] == 1 then
+            g:update()
         end
     end
-end
-
-
-
-function batch_success(batch)
-    local success = torch.Tensor(#batch):fill(0)
-    for i, g in pairs(batch) do
-        if g:is_success() then
-            success[i] = 1
-        end
-    end
-    return success
 end

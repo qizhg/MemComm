@@ -10,8 +10,8 @@ g_mazebase = {}
 paths.dofile('MazeBase.lua')
 paths.dofile('GameFactory.lua')
 paths.dofile('OptsHelper.lua')
+paths.dofile('batch.lua')
 paths.dofile('JunBase.lua')
---paths.dofile('batch.lua')
 
 local function init_game_opts()
     local games = {}

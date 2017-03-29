@@ -50,10 +50,10 @@ function g_build_speaker_model()
 	 --input table
     local map = nn.Identity()() --(#batch, num_channels, map_height, map_width)
     local prev_hid = nn.Identity()() --(#batch, lstm_hidsz)
-    local prev_cell = nn.Identity()() --(#batch, lstm_hidsz)
+    local prev_cell = nn.Identity()()
 
     --game parameters
-    local num_channels = 3 + g_opts.num_types_objects * 2
+    local num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
 
     --apply conv-fc to map
     local n_featuremaps = {3, 64, 128}
@@ -62,7 +62,7 @@ function g_build_speaker_model()
 
     local conv1 = nn.SpatialConvolution(num_channels, n_featuremaps[1], 
                                 filter_size[1], filter_size[1], 
-                                filter_stride[1], filter_stride[1])(localmap)
+                                filter_stride[1], filter_stride[1])(map)
     local nonl1 = nonlin()(conv1)
     
     local conv2 = nn.SpatialConvolution(n_featuremaps[1], n_featuremaps[2], 
@@ -84,27 +84,30 @@ function g_build_speaker_model()
     local lstm_input = map_embedding
     local hidstate, cellstate = build_lstm(lstm_input, prev_hid, prev_cell, lstm_hidsz)
 
-    --apply fc to lstm hid to get action_prob and baseline
+    --apply fc to lstm hid to get action_prob
     local hid_act = nonlin()(nn.Linear(lstm_hidsz, lstm_hidsz)(hidstate))
-    local action = nn.Linear(lstm_hidsz, g_opts.num_symbols)(hid_act)
-    local action_prob = nn.LogSoftMax()(action)
-    local hid_bl = nonlin()(nn.Linear(lstm_hidsz, lstm_hidsz)(hidstate))
-    local baseline = nn.Linear(lstm_hidsz, 1)(hid_bl)
+    local symbols = nn.Linear(lstm_hidsz, g_opts.num_symbols)(hid_act)
+    local symbols_logprob = nn.LogSoftMax()(symbols) --(#batch, num_symbols)
     
-    local model = nn.gModule({map, prev_hid, prev_cell},
-                             {action_prob, baseline, hidstate, cellstate})
+    --Gumbel SoftMax
+    local Gumbel_noise = nn.Identity()() --(#batch, num_symbols)
+    local Gumbel_trick = nn.CAddTable()({Gumbel_noise, symbols_logprob})
+    local Gumbel_trick_temp = nn.MulConstant(1.0/g_opts.Gumbel_temp)(Gumbel_trick)
+    local Gumbel_SoftMax = nn.LogSoftMax()(Gumbel_trick_temp)
+    local model = nn.gModule({map, prev_hid, prev_cell, Gumbel_noise},
+                             {Gumbel_SoftMax,hidstate, cellstate})
     return model
 end
 
 
 function g_init_speaker_model()
-    g_speaker_model = {}
-    g_speaker_paramx = {}
-    g_speaker_paramdx= {}
+    g_speaker_model   = {}
+    g_speaker_paramx  = {}
+    g_speaker_paramdx = {}
 
-    for task_id = 1, g_opts.ntasks do
+    for task_id = 1, g_opts.num_tasks do
         g_speaker_model[task_id] = g_build_speaker_model()
-        g_speaker_paramx[task_id], g_speaker_paramdx[task_id] = g_speaker_model:getParameters()
+        g_speaker_paramx[task_id], g_speaker_paramdx[task_id] = g_speaker_model[task_id]:getParameters()
         if g_opts.init_std > 0 then
             g_speaker_paramx[task_id]:normal(0, g_opts.init_std)
         end

@@ -8,11 +8,16 @@ function JunBase:__init(opts, vocab)
     ----speaker
     self.num_symbols = opts.num_symbols
     self.speaker = self:add_item({type = 'agent', name = 'speaker'}) --move actions
-    self:add_speaker_actions() --delete move actions, add talk actions
+    self:set_speaker_actions() --delete move actions, add talk actions
     ----listener
     self.listener = self:place_item_rand({type = 'agent', name = 'listener'}) --move actions
-    self:add_listener_actions() --pick up actions
     self.listener_visibility = opts.listener_visibility
+    self.pickup_enable = opts.pickup_enable
+    if self.pickup_enable ==true then
+        self:add_listener_pickup_actions() --pick up actions
+    end
+    self.agent = self.listener --for calling parent
+
     
     --add random objects
     self.num_types_objects = opts.num_types_objects
@@ -36,18 +41,17 @@ function JunBase:__init(opts, vocab)
 
     --task finished dict
     self.finished = false
-    self.num_tasks = 0 
     self.id2task = {}
     self.task2id = {}
     for obj_id = 1, self.num_types_objects do
-
-        self.id2task[2*obj_id-1] = 'visit '..'obj'..obj_id
-        self.id2task[2*obj_id] = 'pickup '..'obj'..obj_id
+        self.id2task[obj_id] = 'visit '..'obj'..obj_id
         self.task2id['visit '..'obj'..obj_id] = 2*obj_id-1
-        self.task2id['pickup '..'obj'..obj_id] = 2*obj_id
 
-        self.num_tasks = self.num_tasks + 2 
+        self.id2task[self.num_types_objects+obj_id] = 'pickup '..'obj'..obj_id
+        self.task2id['pickup '..'obj'..obj_id] = self.num_types_objects+obj_id
+
     end
+    self.num_tasks = #self.id2task
     self.task_id = torch.random(1, self.num_tasks)
 end
 
@@ -64,7 +68,7 @@ function JunBase:add_objects()
 
 end
 
-function JunBase:add_listener_actions()
+function JunBase:add_listener_pickup_actions()
 
     self.listener:add_action('pickup_up',
         function(self) --self for litsener
@@ -96,7 +100,7 @@ function JunBase:add_listener_actions()
         end)
 end
 
-function JunBase:add_speaker_actions()
+function JunBase:set_speaker_actions()
     --remove all actions
     self.speaker.action_names = {}  -- id -> name
     self.speaker.action_ids = {}    -- name -> id
@@ -125,9 +129,11 @@ function JunBase:to_fullmap_obs()
                 if itemtype_id <= 3 then
                     map[itemtype_id][y][x] = 1
                 elseif e.picked_up == false then
-                    map[3 + 2*(itemtype_id-3) -1 ][y][x] = 1
+                    local obj_id = itemtype_id -3
+                    map[3 + obj_id ][y][x] = 1
                 else
-                    map[3 + 2*(itemtype_id-3) ][y][x] = 1
+                    local obj_id = itemtype_id -3
+                    map[3 + self.num_types_objects + obj_id][y][x] = 1
                 end
             end
         end
@@ -148,16 +154,18 @@ function JunBase:to_localmap_obs(agent, visibility)
     for y = math.max(1, agent.loc.y - visibility) , math.min(self.map.height, agent.loc.y + visibility) do
         yy = yy + 1
         xx = 0
-        for x = math.max(1, agent.loc.x - visibility) , math.min(self.map.width, agent.loc.x + svisibility) do
+        for x = math.max(1, agent.loc.x - visibility) , math.min(self.map.width, agent.loc.x + visibility) do
             xx = xx + 1
             for _,e in ipairs(self.map.items[y][x]) do
                 local itemtype_id = self.ItemType2id[e.type]
                 if itemtype_id <= 3 then
                     local_map[itemtype_id][yy][xx] = 1
                 elseif e.picked_up == false then
-                    local_map[3 + 2*(itemtype_id-3) -1 ][yy][xx] = 1
+                    local obj_id = itemtype_id -3
+                    local_map[3 + obj_id  ][yy][xx] = 1
                 else
-                    local_map[3 + 2*(itemtype_id-3) ][yy][xx] = 1
+                    local obj_id = itemtype_id -3
+                    local_map[3 + self.num_types_objects + obj_id][yy][xx] = 1
                 end
             end
         end
@@ -181,13 +189,13 @@ function JunBase:update()
     end
 
     --check for task finished
-    local task_obj_id = math.ceil(self.task_id/2)
-    local items = self.map.items[self.agent.loc.y][self.agent.loc.x]
+    local task_obj_id = self.task_id % self.num_types_objects
+    local items = self.map.items[self.listener.loc.y][self.listener.loc.x]
     for i = 1, #items do
         if items[i] == 'obj'.. task_obj_id then
-            if task_id % 2 == 1 and items.picked_up == false then --visit
+            if self.task_id / self.num_types_objects == 0 and items.picked_up == false then --visit
                 self.finished = true
-            elseif task_id % 2 == 0 and items.picked_up == true then --pick_up
+            elseif self.task_id / self.num_types_objects == 1 and items.picked_up == true then --pick_up
                 self.finished = true
             end
         end

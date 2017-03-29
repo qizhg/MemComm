@@ -1,8 +1,11 @@
 
 --torch.manualSeed(451)
 torch.setdefaulttensortype('torch.FloatTensor')
+paths.dofile('util.lua')
 paths.dofile('mazebase/init.lua')
 paths.dofile('model/listener_model.lua')
+paths.dofile('model/speaker_model.lua')
+paths.dofile('train.lua')
 
 require'gnuplot'
 
@@ -18,9 +21,8 @@ cmd:option('--nagents', 1, 'the number of agents')
 cmd:option('--nactions', 5, 'the number of agent actions')
 cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
-cmd:option('--visibility', 1, 'vision range of agents')
 -- training parameters
-cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
+cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
 cmd:option('--lrate', 1e-4, 'learning rate')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 cmd:option('--beta', 0, 'coefficient of baseline term in the cost function')
@@ -28,9 +30,8 @@ cmd:option('--eps_start', 0.2, 'eps')
 cmd:option('--eps_end', 0.05, 'eps')
 cmd:option('--eps_end_batch', 10000, 'eps')
 cmd:option('--epochs', 100, 'the number of training epochs')
-cmd:option('--nbatches',200, 'the number of mini-batches in one epoch')
+cmd:option('--nbatches', 1, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size', 5, 'size of mini-batch (the number of parallel games) in each thread')
-cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
@@ -50,13 +51,14 @@ g_opts = cmd:parse(arg or {})
 
 g_mazebase.init_vocab()
 g_mazebase.init_game()
---g_init_listener_model()
+g_init_listener_model()
+g_init_speaker_model()
 
+train(1)
 
-g = g_mazebase.new_game()
-
-g_disp = require('display')
-g_disp.image(g.map:to_image())
+--g = g_mazebase.new_game()
+--g_disp = require('display')
+--g_disp.image(g.map:to_image())
 
 --[[
 g.listener:act(6)

@@ -35,15 +35,24 @@ sso.max_num_objects = 3 --max number of a type of object
 -------------------------------------------------------
 sso.num_symbols = 5
 sso.listener_visibility = 0
+sso.pickup_enable =false
 
 -- g_opts----
 g_opts.map_height = mapH[1]
 g_opts.map_width = mapW[1]
 g_opts.num_symbols = sso.num_symbols
-g_opts.listener_visibility = sso.listener_visibility
 g_opts.num_types_objects = sso.num_types_objects
-g_opts.listener_nactions = 5 + 4     --moves + pickup
-g_opts.ntasks = sso.num_types_objects*2     --moves + pickup
+g_opts.listener_visibility = sso.listener_visibility
+g_opts.pickup_enable = sso.pickup_enable
+if sso.pickup_enable == false then
+	g_opts.listener_nactions = 5     --moves 
+	g_opts.num_tasks = sso.num_types_objects     --moves 
+else
+	g_opts.listener_nactions = 5 + 4     --moves + pickup
+	g_opts.num_tasks = sso.num_types_objects*2     --moves + pickup
+end
+
+
 
 -- JunBase:
 local JunBaseRangeOpts = {}

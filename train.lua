@@ -1,84 +1,64 @@
-
-
 require'optim'
 
 
-function train_batch()
+function train_batch(task_id)
 	local batch = batch_init(g_opts.batch_size)
-	-- record the episode
+	
+    -- record the episode
     local active = {}
     local reward = {}
-    local action = {}
 
 
-    local in_dim = (g_opts.visibility*2+1)^2 * g_opts.nwords
-    local obs = torch.Tensor(g_opts.max_steps, #batch, in_dim)
-    obs:fill(0)
+    local speaker = {}
+    local speaker_hidsz = g_opts.hidsz
+    speaker.map = {}
+    speaker.hid = {} 
+    speaker.cell = {}
+    speaker.hid[0] = torch.zeros(#batch, speaker_hidsz)
+    speaker.cell[0] = torch.zeros(#batch, speaker_hidsz)
 
+    local listener = {}
+    local listener_hidsz = 2*g_opts.hidsz
+    listener.localmap  = {}
+    listener.symbol    = {}
+    listener.hid = {} 
+    listener.cell = {}
+    listener.hid[0] = torch.zeros(#batch, listener_hidsz)
+    listener.cell[0] = torch.zeros(#batch, listener_hidsz)
+    listener.action = {}
+
+
+    local Gumbel_noise = {}
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
-        --get active games
         active[t] = batch_active(batch)
-    	--get the latest observation
-    	obs[t] = batch_obs(batch,active[t])
-        --get input
-        local mem_input
-        if g_opts.memsize > 0 then 
-            mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
-            mem_input:fill(0)
-            if g_opts.memsize > 0 and t > 1 then 
-                local mem_start, mem_end
-                mem_start = math.max(1, t - g_opts.memsize)
-                mem_end = math.max(1, t - 1)
-                mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
-            end
-            mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
-            local time_feature = torch.Tensor(#batch, g_opts.memsize, g_opts.memsize)
-            for i = 1, #batch do time_feature[i] = torch.eye(g_opts.memsize) end
-            mem_input = torch.cat(mem_input,time_feature,3) --(#batch, memsize, in_dim+memsize)
-        end
-        local new_obs = obs[t]:clone() --(#batch, in_dim)
 
+        --speaker
+    	speaker.map[t] = batch_speaker_map(batch,active[t])
+        Gumbel_noise[t] = torch.rand(#batch, g_opts.num_symbols):log():neg():log():neg()
+        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]})
+        ----speaker_out  = {Gumbel_SoftMax, hidstate, cellstate}
+        speaker.hid[t] = speaker_out[2]:clone()
+        speaker.cell[t] = speaker_out[3]:clone()
 
-        
+        --speaker-listener comm
+        listener.symbol[t] = speaker_out[1]:clone()
+        --listener forward and act
+        listener.localmap[t] = batch_listener_localmap(batch,active[t])
+        local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
+        ----listener_out  = {action_prob, baseline, hidstate, cellstate}
+        listener.hid[t] = listener_out[3]:clone()
+        listener.cell[t] = listener_out[4]:clone()
+        listener.action[t] = sample_multinomial(torch.exp(listener_out[1]))  --(#batch, 1)
+        listener.action[t] = torch.squeeze(listener.action[t]) --(#batch, 1)
 
-        --forward input to get output = {action_logprob, baseline}
-        local out
-        if g_opts.memsize >0 then 
-            out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
-        else
-            out = g_model:forward(new_obs)
-        end
-
-        ep = g_opts.eps_start - (g_nbatches-1)*(g_opts.eps_start-g_opts.eps_end)/(g_opts.eps_end_batch-1)
-        --ep = math.max(ep, g_opts.eps_end)
-        if torch.uniform() < ep then
-            action[t] = torch.LongTensor(#batch,1)
-            action[t]:random(1, g_opts.nactions)
-        else
-            action[t] = sample_multinomial(torch.exp(out[1]))  --(#batch, 1)
-        end
-
-        
-        --if t==1 and agent.route[#agent.route].y==11 and agent.route[#agent.route].x==6 then
-        --    print(torch.exp(out[1][1]))
-        --end
-
-        
-       
-        batch_act(batch, action[t], active[t])
-        --print('agent at: '..agent.loc.y..'  '..agent.loc.x)
+        batch_listener_act(batch, listener.action[t], active[t])
         batch_update(batch, active[t])
-        reward[t] = batch_reward(batch, active[t]) --(#batch, )
-
-        --print(reward[t][1])
+        reward[t] = batch_reward(batch, active[t])
     end
-    --print('agent end: '..agent.loc.y..'  '..agent.loc.x)
-    --local temp = io.read("*n")
-    local success = batch_success(batch)
-    --print(success[1])
 
+    --[[
     --backward pass
     
     g_paramdx:zero()
@@ -137,47 +117,18 @@ function train_batch()
     stat.success = success:sum()
     stat.count = g_opts.batch_size
     return stat
+    --]]
 
 end
 
 function train(N)
-
-    local to_update= true
-    local threashold = 70
 	
     for n = 1, N do
-        local stat = {} --for the epoch
 		for k = 1, g_opts.nbatches do
-            g_nbatches = (n-1)*g_opts.nbatches + k
-			local s = train_batch() --get g_paramx, g_paramdx
-            if to_update then
-                g_update_param(g_paramx, g_paramdx)
-            end
-            for k, v in pairs(s) do
-                stat[k] = (stat[k] or 0) + v
-            end
-
-		end
-        for k, v in pairs(stat) do
-            if string.sub(k, 1, 5) == 'count' then
-                local s = string.sub(k, 6)
-                stat['reward' .. s] = stat['reward' .. s] / v
-                stat['success' .. s] = stat['success' .. s] / v
-            end
+            local task_id = torch.random(1, g_opts.num_tasks) --all game in a batch share the same task
+			train_batch(task_id)
         end
-        if stat.success > threashold/100.0 then
-            --g_n_70 = g_n_70+1
-            g_opts.save = 'mem'..g_opts.memsize..'at'..threashold
-            g_save_model()
-            threashold  = threashold + 10
-        end
-
-        stat.epoch = #g_log + 1
-        print(format_stat(stat))
-        print(ep)
-        table.insert(g_log, stat)
-	end
-
+    end
 
 end
 
