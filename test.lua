@@ -45,7 +45,7 @@ cmd:option('--adam_beta2', 0.999, 'parameter of Adam')
 cmd:option('--adam_eps', 1e-8, 'parameter of Adam')
 --other
 cmd:option('--save', '', 'file name to save the model')
-cmd:option('--load', 'mem10at70', 'file name to load the model')
+cmd:option('--load', '', 'file name to load the model')
 g_opts = cmd:parse(arg or {})
 
 
