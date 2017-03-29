@@ -2,7 +2,7 @@ require'optim'
 
 
 function train_batch(task_id)
-	local batch = batch_init(g_opts.batch_size)
+	local batch = batch_init(g_opts.batch_size, task_id)
 	
     -- record the episode
     local active = {}

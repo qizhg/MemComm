@@ -5,10 +5,11 @@
 -- LICENSE file in the root directory of this source tree. An additional grant 
 -- of patent rights can be found in the PATENTS file in the same directory.
 
-function batch_init(size)
+function batch_init(size, task_id)
     local batch = {}
     for i = 1, size do
         batch[i] = g_mazebase.new_game()
+        batch[i].task_id = task_id
     end
     return batch
 end
