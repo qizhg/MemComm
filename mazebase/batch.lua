@@ -52,7 +52,7 @@ end
 function batch_listener_act(batch, listener_action, active)
     for i, g in pairs(batch) do
         if active[i] == 1 then
-            g:listener_act(listener_action[i])
+            g:listener_act(listener_action[i][1])
         end
     end
 end

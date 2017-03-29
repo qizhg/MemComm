@@ -50,8 +50,11 @@ function g_build_listener_model()
 	 --input table
     local localmap = nn.Identity()() --(#batch, num_channels, visibility*2+1, visibility*2+1)
     local symbol = nn.Identity()() --(#batch, num_symbols) 1-hot vectors
+    g_listener_modules['symbol'] = symbol.data.module
     local prev_hid = nn.Identity()() --(#batch, lstm_hidsz)
+    g_listener_modules['prev_hid'] = prev_hid.data.module
     local prev_cell = nn.Identity()() --(#batch, lstm_hidsz)
+    g_listener_modules['prev_cell'] = prev_cell.data.module
 
     --game parameters
     local num_channels = 3 + g_opts.num_types_objects * 2

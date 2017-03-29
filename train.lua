@@ -14,8 +14,8 @@ function train_batch(task_id)
     speaker.map = {}
     speaker.hid = {} 
     speaker.cell = {}
-    speaker.hid[0] = torch.zeros(#batch, speaker_hidsz)
-    speaker.cell[0] = torch.zeros(#batch, speaker_hidsz)
+    speaker.hid[0] = torch.Tensor(#batch, speaker_hidsz):fill(0)
+    speaker.cell[0] = torch.Tensor(#batch, speaker_hidsz):fill(0)
 
     local listener = {}
     local listener_hidsz = 2*g_opts.hidsz
@@ -23,8 +23,8 @@ function train_batch(task_id)
     listener.symbol    = {}
     listener.hid = {} 
     listener.cell = {}
-    listener.hid[0] = torch.zeros(#batch, listener_hidsz)
-    listener.cell[0] = torch.zeros(#batch, listener_hidsz)
+    listener.hid[0] = torch.Tensor(#batch, listener_hidsz):fill(0)
+    listener.cell[0] = torch.Tensor(#batch, listener_hidsz):fill(0)
     listener.action = {}
 
 
@@ -47,78 +47,61 @@ function train_batch(task_id)
         --listener forward and act
         listener.localmap[t] = batch_listener_localmap(batch,active[t])
         local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
-        ----listener_out  = {action_prob, baseline, hidstate, cellstate}
+        ----  listener_out = {action_prob, baseline, hidstate, cellstate}
         listener.hid[t] = listener_out[3]:clone()
         listener.cell[t] = listener_out[4]:clone()
         listener.action[t] = sample_multinomial(torch.exp(listener_out[1]))  --(#batch, 1)
-        listener.action[t] = torch.squeeze(listener.action[t]) --(#batch, 1)
 
         batch_listener_act(batch, listener.action[t], active[t])
         batch_update(batch, active[t])
         reward[t] = batch_reward(batch, active[t])
     end
 
-    --[[
     --backward pass
-    
-    g_paramdx:zero()
+    g_listener_paramdx:zero()
+    g_speaker_paramdx[task_id]:zero()
+    local listener_grad_hid = torch.Tensor(#batch, listener_hidsz):fill(0)
+    local listener_grad_cell = torch.Tensor(#batch, listener_hidsz):fill(0)
+    local speaker_grad_hid = torch.Tensor(#batch, speaker_hidsz):fill(0)
+    local speaker_grad_cell = torch.Tensor(#batch, speaker_hidsz):fill(0)
+
     local reward_sum = torch.Tensor(#batch):zero() --running reward sum
 
     for t = g_opts.max_steps, 1, -1 do
         reward_sum:add(reward[t])
 
-        --do step forward
-        local mem_input
-        if g_opts.memsize > 0 then 
-            mem_input = torch.Tensor(g_opts.memsize, #batch, in_dim)
-            mem_input:fill(0)
-            if g_opts.memsize > 0 and t > 1 then 
-                local mem_start, mem_end
-                mem_start = math.max(1, t - g_opts.memsize)
-                mem_end = math.max(1, t - 1)
-                mem_input[{{1,mem_end-mem_start+1}}] = obs[{{mem_start,mem_end}}]
-            end
-            mem_input = mem_input:transpose(1,2) --(#batch, memsize, in_dim)
-            local time_feature = torch.Tensor(#batch, g_opts.memsize, g_opts.memsize)
-            for i = 1, #batch do time_feature[i] = torch.eye(g_opts.memsize) end
-            mem_input = torch.cat(mem_input,time_feature,3) --(#batch, memsize, in_dim+memsize)
-        end
-        local new_obs = obs[t]:clone() --(#batch, in_dim)
-
-
-        if g_opts.memsize >0 then 
-            out = g_model:forward({mem_input, new_obs})  --out[1] = action_logprob
-        else
-            out = g_model:forward(new_obs)
-        end
-
-        --compute grad baseline
-        local baseline = out[2] --(#batch, 1)
+        --listener
+        local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
+        ----  listener_out = {action_logprob, baseline, hidstate, cellstate}
+        ---- compute listener_grad baseline
+        local listener_baseline = listener_out[2] --(#batch, 1)
         local R = reward_sum:clone() --(#batch, )
-        baseline:cmul(active[t]) --(#batch, 1) 
+        listener_baseline:cmul(active[t]) --(#batch, 1) 
         R:cmul(active[t]) --(#batch, )
-        local grad_baseline = g_bl_loss:backward(baseline, R):mul(g_opts.alpha) --(#batch, 1)
+        local listener_grad_baseline = g_listener_bl_loss:backward(listener_baseline, R):mul(g_opts.alpha) --(#batch, 1)
+        
+        --  using REINFORCE
+        local listener_grad_action = torch.Tensor(#batch, g_opts.listener_nactions):zero()
+        local R_action = listener_baseline - R
+        listener_grad_action:scatter(2, listener.action[t], R_action)
+        listener_grad_action:div(#batch)
 
-        --REINFORCE
-        local grad = torch.Tensor(#batch, g_opts.nactions):zero()
-        local R_action = baseline - R
-        grad:scatter(2, action[t], R_action)
-        grad:div(#batch) --???
+        --listener_backward and cache grad_hid, grad_cell, grad symbol
+        g_listener_model:backward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]},
+                                {listener_grad_action, listener_grad_baseline, listener_grad_hid, listener_grad_cell})
+        
+        listener_grad_hid = g_listener_modules['prev_hid'].gradInput:clone()
+        listener_grad_cell = g_listener_modules['prev_cell'].gradInput:clone()
+        grad_symbol = g_listener_modules['symbol'].gradInput:clone()
 
-        --backward
-        g_model:backward({mem_input, new_obs}, {grad, grad_baseline})
+        --speaker
+        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]})
+        ----speaker_out  = {Gumbel_SoftMax, hidstate, cellstate}
+        g_speaker_model[task_id]:backward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]},
+                                {grad_symbol, speaker_grad_hid, speaker_grad_cell})
+        speaker_grad_hid = g_speaker_modules[task_id]['prev_hid'].gradInput:clone()
+        speaker_grad_cell = g_speaker_modules[task_id]['prev_cell'].gradInput:clone()
     end
-
-    --print(reward_sum[1])
-
-    --log
-    local stat={}
-    stat.reward = reward_sum:sum()
-    stat.success = success:sum()
-    stat.count = g_opts.batch_size
-    return stat
-    --]]
-
 end
 
 function train(N)
@@ -126,31 +109,63 @@ function train(N)
     for n = 1, N do
 		for k = 1, g_opts.nbatches do
             local task_id = torch.random(1, g_opts.num_tasks) --all game in a batch share the same task
-			train_batch(task_id)
+            train_batch(task_id)
+            g_update_speaker_param(g_speaker_paramx[task_id], g_speaker_paramdx[task_id], task_id)
+            g_update_listener_param(g_listener_paramx, g_listener_paramdx)
         end
     end
 
 end
 
-function g_update_param(x, dx)
+function g_update_speaker_param(x, dx, task_id)
    
     local f = function(x0) return x, dx end
-    if not g_optim_state then g_optim_state = {} end
+    if not g_optim_speaker_state then
+        g_optim_speaker_state = {}
+        for i = 1, g_opts.num_tasks do
+            g_optim_speaker_state[i] = {} 
+        end
+    end
     local config = {learningRate = g_opts.lrate}
     if g_opts.optim == 'sgd' then
         config.momentum = g_opts.momentum
         config.weightDecay = g_opts.wdecay
-        optim.sgd(f, x, config, g_optim_state)
+        optim.sgd(f, x, config, g_optim_speaker_state[task_id])
     elseif g_opts.optim == 'rmsprop' then
         config.alpha = g_opts.rmsprop_alpha
         config.epsilon = g_opts.rmsprob_eps
         config.weightDecay = g_opts.wdecay
-        optim.rmsprop(f, x, config, g_optim_state)
+        optim.rmsprop(f, x, config, g_optim_speaker_state[task_id])
     elseif g_opts.optim == 'adam' then
         config.beta1 = g_opts.adam_beta1
         config.beta2 = g_opts.adam_beta2
         config.epsilon = g_opts.adam_eps
-        optim.adam(f, x, config, g_optim_state)
+        optim.adam(f, x, config, g_optim_speaker_state[task_id])
+    else
+        error('wrong optim')
+    end
+
+end
+
+function g_update_listener_param(x, dx)
+   
+    local f = function(x0) return x, dx end
+    if not g_optim_listener_state then g_optim_listener_state = {} end
+    local config = {learningRate = g_opts.lrate}
+    if g_opts.optim == 'sgd' then
+        config.momentum = g_opts.momentum
+        config.weightDecay = g_opts.wdecay
+        optim.sgd(f, x, config, g_optim_listener_state)
+    elseif g_opts.optim == 'rmsprop' then
+        config.alpha = g_opts.rmsprop_alpha
+        config.epsilon = g_opts.rmsprob_eps
+        config.weightDecay = g_opts.wdecay
+        optim.rmsprop(f, x, config, g_optim_listener_state)
+    elseif g_opts.optim == 'adam' then
+        config.beta1 = g_opts.adam_beta1
+        config.beta2 = g_opts.adam_beta2
+        config.epsilon = g_opts.adam_eps
+        optim.adam(f, x, config, g_optim_listener_state)
     else
         error('wrong optim')
     end

@@ -23,6 +23,7 @@ cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
 -- training parameters
 cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
+cmd:option('--optim', 'adam', 'optimization method: rmsprop | sgd | adam')
 cmd:option('--lrate', 1e-4, 'learning rate')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 cmd:option('--beta', 0, 'coefficient of baseline term in the cost function')

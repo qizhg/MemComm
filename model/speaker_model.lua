@@ -46,11 +46,13 @@ local function build_lstm(input, prev_hid, prev_cell, hidsz)
     return hidstate, cellstate
 end
 
-function g_build_speaker_model()
+function g_build_speaker_model(task_id)
 	 --input table
     local map = nn.Identity()() --(#batch, num_channels, map_height, map_width)
     local prev_hid = nn.Identity()() --(#batch, lstm_hidsz)
     local prev_cell = nn.Identity()()
+    g_speaker_modules[task_id]['prev_hid'] = prev_hid.data.module
+    g_speaker_modules[task_id]['prev_cell'] = prev_cell.data.module
 
     --game parameters
     local num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
@@ -102,11 +104,13 @@ end
 
 function g_init_speaker_model()
     g_speaker_model   = {}
+    g_speaker_modules = {}
     g_speaker_paramx  = {}
     g_speaker_paramdx = {}
 
     for task_id = 1, g_opts.num_tasks do
-        g_speaker_model[task_id] = g_build_speaker_model()
+        g_speaker_modules[task_id] = {}
+        g_speaker_model[task_id] = g_build_speaker_model(task_id)
         g_speaker_paramx[task_id], g_speaker_paramdx[task_id] = g_speaker_model[task_id]:getParameters()
         if g_opts.init_std > 0 then
             g_speaker_paramx[task_id]:normal(0, g_opts.init_std)
