@@ -107,6 +107,7 @@ end
 function train(N)
 	
     for n = 1, N do
+        print(n)
 		for k = 1, g_opts.nbatches do
             local task_id = torch.random(1, g_opts.num_tasks) --all game in a batch share the same task
             train_batch(task_id)
