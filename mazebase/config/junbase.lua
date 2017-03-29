@@ -5,8 +5,8 @@ g_opts.multigames = {}
 --current min, current max, min max, max max, increment
 local mapH = torch.Tensor{10,10,5,10,1}
 local mapW = torch.Tensor{10,10,5,10,1}
-local blockspct = torch.Tensor{.0,.0, 0,.2,.01}
-local waterpct = torch.Tensor{.0,.0, 0,.2,.01}
+local blockspct = torch.Tensor{.1,.1, 0,.2,.01}
+local waterpct = torch.Tensor{.1,.1, 0,.2,.01}
 
 -------------------
 --some shared StaticOpts
@@ -30,20 +30,20 @@ sso.enable_boundary = 1
 sso.max_attributes = g_opts.max_attributes or 6
 -------------------------
 sso.num_types_objects = 5
-sso.min_num_objects = 0 --min number of a type of object
-sso.max_num_objects = 0 --max number of a type of object
+sso.min_num_objects = 1 --min number of a type of object
+sso.max_num_objects = 3 --max number of a type of object
 -------------------------------------------------------
 sso.num_symbols = 5
 sso.listener_visibility = 0
 
 -- g_opts----
-g_opts.map_height = sso.mapH[1]
-g_opts.map_width = sso.mapW[1]
+g_opts.map_height = mapH[1]
+g_opts.map_width = mapW[1]
 g_opts.num_symbols = sso.num_symbols
 g_opts.listener_visibility = sso.listener_visibility
 g_opts.num_types_objects = sso.num_types_objects
 g_opts.listener_nactions = 5 + 4     --moves + pickup
-g_opts.ntasks = num_types_objects*2     --moves + pickup
+g_opts.ntasks = sso.num_types_objects*2     --moves + pickup
 
 -- JunBase:
 local JunBaseRangeOpts = {}

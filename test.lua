@@ -50,15 +50,15 @@ g_opts = cmd:parse(arg or {})
 
 g_mazebase.init_vocab()
 g_mazebase.init_game()
-g_init_listener_model()
+--g_init_listener_model()
 
 
---[[
 g = g_mazebase.new_game()
 
 g_disp = require('display')
 g_disp.image(g.map:to_image())
 
+--[[
 g.listener:act(6)
 g:update()
 g.listener:act(2)

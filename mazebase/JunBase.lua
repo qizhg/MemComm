@@ -60,7 +60,7 @@ function JunBase:add_objects()
             self:place_item_rand({type = 'obj'.. obj_id, picked_up = false})
         end
     end
-    self:place_item({type = 'obj'.. 1, picked_up = false},self.listener.loc.y-1,self.listener.loc.x)
+    --self:place_item({type = 'obj'.. 1, picked_up = false},self.listener.loc.y-1,self.listener.loc.x)
 
 end
 
