@@ -58,7 +58,7 @@ function g_build_speaker_model(task_id)
     local num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
 
     --apply conv-fc to map
-    local n_featuremaps = {3, 64, 128}
+    local n_featuremaps = {3, 16, 32}
     local filter_size =   {1, 1, 3}
     local filter_stride = {1, 1, 1}
 
@@ -95,7 +95,7 @@ function g_build_speaker_model(task_id)
     local Gumbel_noise = nn.Identity()() --(#batch, num_symbols)
     local Gumbel_trick = nn.CAddTable()({Gumbel_noise, symbols_logprob})
     local Gumbel_trick_temp = nn.MulConstant(1.0/g_opts.Gumbel_temp)(Gumbel_trick)
-    local Gumbel_SoftMax = nn.LogSoftMax()(Gumbel_trick_temp)
+    local Gumbel_SoftMax = nn.SoftMax()(Gumbel_trick_temp)
     local model = nn.gModule({map, prev_hid, prev_cell, Gumbel_noise},
                              {Gumbel_SoftMax,hidstate, cellstate})
     return model

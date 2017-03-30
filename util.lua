@@ -85,6 +85,8 @@ function format_stat(stat)
     for n in pairs(stat) do table.insert(a, n) end
     table.sort(a)
     local str = ''
+
+    --[[
     for i,n in ipairs(a) do
         if string.find(n,'count_') then
             str = str .. n .. ': ' .. string.format("%2.4g",stat[n]) .. ' '
@@ -102,11 +104,12 @@ function format_stat(stat)
             str = str .. n .. ': ' ..  string.format("%2.4g",stat[n]) .. ' '
         end
     end
+    --]]
     str = str .. '\n'
-    str = str .. 'bl_cost: ' .. string.format("%2.4g",stat['bl_cost']) .. ' '
+    --str = str .. 'bl_cost: ' .. string.format("%2.4g",stat['bl_cost']) .. ' '
     str = str .. 'reward: ' .. string.format("%2.4g",stat['reward']) .. ' '
     str = str .. 'success: ' .. string.format("%2.4g",stat['success']) .. ' '
-    str = str .. 'active: ' .. string.format("%2.4g",stat['step_active']) .. ' '
+    --str = str .. 'active: ' .. string.format("%2.4g",stat['step_active']) .. ' '
     str = str .. 'epoch: ' .. stat['epoch']
     return str
 end
@@ -158,7 +161,7 @@ end
 
 function g_save_model()
     if g_opts.save ~= '' then
-        f = {opts=g_opts, paramx=g_paramx, log=g_log}
+        f = {opts=g_opts, paramx={g_listener_paramx, g_speaker_paramx}, log=g_log}
         if g_optim_state then f['optim_state'] = g_optim_state end
         torch.save(g_opts.save, f)
         print('model saved to ', g_opts.save)

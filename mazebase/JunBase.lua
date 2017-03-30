@@ -128,12 +128,14 @@ function JunBase:to_fullmap_obs()
                 local itemtype_id = self.ItemType2id[e.type]
                 if itemtype_id <= 3 then
                     map[itemtype_id][y][x] = 1
-                elseif e.picked_up == false then
+                elseif e.attr.picked_up == false then
                     local obj_id = itemtype_id -3
                     map[3 + obj_id ][y][x] = 1
-                else
+                elseif e.attr.picked_up == true then
                     local obj_id = itemtype_id -3
                     map[3 + self.num_types_objects + obj_id][y][x] = 1
+                else
+                    --
                 end
             end
         end
@@ -160,12 +162,14 @@ function JunBase:to_localmap_obs(agent, visibility)
                 local itemtype_id = self.ItemType2id[e.type]
                 if itemtype_id <= 3 then
                     local_map[itemtype_id][yy][xx] = 1
-                elseif e.picked_up == false then
+                elseif e.attr.picked_up == false then
                     local obj_id = itemtype_id -3
                     local_map[3 + obj_id  ][yy][xx] = 1
-                else
+                elseif e.attr.picked_up == true then
                     local obj_id = itemtype_id -3
                     local_map[3 + self.num_types_objects + obj_id][yy][xx] = 1
+                else
+                    --
                 end
             end
         end
@@ -190,12 +194,13 @@ function JunBase:update()
 
     --check for task finished
     local task_obj_id = self.task_id % self.num_types_objects
+    if task_obj_id == 0 then task_obj_id = self.num_types_objects end
     local items = self.map.items[self.listener.loc.y][self.listener.loc.x]
     for i = 1, #items do
-        if items[i] == 'obj'.. task_obj_id then
-            if self.task_id / self.num_types_objects == 0 and items.picked_up == false then --visit
+        if items[i].type == 'obj'.. task_obj_id then
+            if (self.task_id-1) / self.num_types_objects == 0 and items[i].attr.picked_up == false then --visit
                 self.finished = true
-            elseif self.task_id / self.num_types_objects == 1 and items.picked_up == true then --pick_up
+            elseif (self.task_id-1) / self.num_types_objects == 1 and items[i].attr.picked_up == true then --pick_up
                 self.finished = true
             end
         end
@@ -209,9 +214,17 @@ function JunBase:listener_act(action)
 end
 
 function JunBase:get_reward()
-    if self.finished then
+    if self.finished == true then
         return -self.costs.goal
     else
         return parent.get_reward(self)
+    end
+end
+
+function JunBase:is_success()
+    if self.finished == true then
+        return true
+    else
+        return false
     end
 end

@@ -62,7 +62,7 @@ function g_build_listener_model()
     local num_symbols = g_opts.num_symbols
 
     --apply conv-fc to localmap
-    local n_featuremaps = {3, 64, 128}
+    local n_featuremaps = {3, 16, 32}
     local filter_size =   {1, 1, 1}
     local filter_stride = {1, 1, 1}
 

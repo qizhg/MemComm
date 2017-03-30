@@ -1,5 +1,5 @@
 require'optim'
-
+g_disp = require('display')
 
 function train_batch(task_id)
 	local batch = batch_init(g_opts.batch_size, task_id)
@@ -32,6 +32,7 @@ function train_batch(task_id)
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
+        g_disp.image(batch[1].map:to_image())
         active[t] = batch_active(batch)
 
         --speaker
@@ -56,6 +57,7 @@ function train_batch(task_id)
         batch_update(batch, active[t])
         reward[t] = batch_reward(batch, active[t])
     end
+    local success = batch_success(batch)
 
     --backward pass
     g_listener_paramdx:zero()
@@ -102,18 +104,44 @@ function train_batch(task_id)
         speaker_grad_hid = g_speaker_modules[task_id]['prev_hid'].gradInput:clone()
         speaker_grad_cell = g_speaker_modules[task_id]['prev_cell'].gradInput:clone()
     end
+
+    local stat={}
+    stat.reward = reward_sum:sum()
+    stat.success = success:sum()
+    stat.count = g_opts.batch_size
+    return stat
 end
 
 function train(N)
-	
+	local threashold = 20
     for n = 1, N do
-        print(n)
+        local stat = {} --for the epoch
 		for k = 1, g_opts.nbatches do
-            local task_id = torch.random(1, g_opts.num_tasks) --all game in a batch share the same task
-            train_batch(task_id)
+            local task_id = 1 --all game in a batch share the same task
+            local s = train_batch(task_id)
             g_update_speaker_param(g_speaker_paramx[task_id], g_speaker_paramdx[task_id], task_id)
             g_update_listener_param(g_listener_paramx, g_listener_paramdx)
+
+            for k, v in pairs(s) do
+                stat[k] = (stat[k] or 0) + v
+            end
         end
+        for k, v in pairs(stat) do
+            if string.sub(k, 1, 5) == 'count' then
+                local s = string.sub(k, 6)
+                stat['reward' .. s] = stat['reward' .. s] / v
+                stat['success' .. s] = stat['success' .. s] / v
+            end
+        end
+        if stat.success > threashold/100.0 then
+            g_opts.save = 'model_at'..threashold
+            g_save_model()
+            threashold  = threashold + 10
+        end
+
+        stat.epoch = #g_log + 1
+        print(format_stat(stat))
+        table.insert(g_log, stat)
     end
 
 end

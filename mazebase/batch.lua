@@ -24,7 +24,7 @@ function batch_active(batch)
     return active:view(-1)
 end
 
-function batch_speaker_map(batch, active, t)
+function batch_speaker_map(batch, active)
     local num_channels = 3 + g_opts.num_types_objects * 2
     local map = torch.Tensor(#batch, num_channels, g_opts.map_height, g_opts.map_width)    
     map:fill(0)
@@ -73,4 +73,14 @@ function batch_update(batch, active)
             g:update()
         end
     end
+end
+
+function batch_success(batch)
+    local success = torch.Tensor(#batch):fill(0)
+    for i, g in pairs(batch) do
+        if g:is_success() then
+            success[i] = 1
+        end
+    end
+    return success
 end
