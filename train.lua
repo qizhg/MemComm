@@ -112,20 +112,42 @@ function train_batch(task_id)
     return stat
 end
 
+function train_batch_thread(opts_orig, listener_paramx_orig, speaker_paramx_orig,task_id)
+    g_opts = opts_orig
+    g_listener_paramx:copy(listener_paramx_orig)
+    g_speaker_paramx[task_id]:copy(speaker_paramx_orig[task_id])
+    local stat = train_batch(task_id)
+    return g_listener_paramdx, g_speaker_paramdx, stat
+end
+
+-- EVERYTHING ABOVE RUNS ON THREADS
+
 function train(N)
 	local threashold = 20
     for n = 1, N do
         local stat = {} --for the epoch
 		for k = 1, g_opts.nbatches do
             local task_id = 1 --all game in a batch share the same task
-            local s = train_batch(task_id)
+            if g_opts.nworker > 1 then
+                g_listener_paramdx:zero()
+                g_speaker_paramdx[task_id]:zero()
+                for w = 1, g_opts.nworker do
+                    g_workers:addjob(w, train_batch_thread,
+                        function(listener_paramdx_thread, speaker_paramdx_thread, s)
+                            g_listener_paramdx:add(listener_paramdx_thread)
+                            g_speaker_paramdx[task_id]:add(speaker_paramdx_thread[task_id])
+                            merge_stat(stat, s)
+                        end, g_opts, g_listener_paramx, g_speaker_paramx, task_id)
+                end
+                g_workers:synchronize()
+            else
+                local s = train_batch(task_id)
+                merge_stat(stat, s)
+            end
             g_update_speaker_param(g_speaker_paramx[task_id], g_speaker_paramdx[task_id], task_id)
             g_update_listener_param(g_listener_paramx, g_listener_paramdx)
-
-            for k, v in pairs(s) do
-                stat[k] = (stat[k] or 0) + v
-            end
         end
+        
         for k, v in pairs(stat) do
             if string.sub(k, 1, 5) == 'count' then
                 local s = string.sub(k, 6)
@@ -147,7 +169,7 @@ function train(N)
 end
 
 function g_update_speaker_param(x, dx, task_id)
-   
+    dx:div(g_opts.nworker)   
     local f = function(x0) return x, dx end
     if not g_optim_speaker_state then
         g_optim_speaker_state = {}
@@ -177,7 +199,7 @@ function g_update_speaker_param(x, dx, task_id)
 end
 
 function g_update_listener_param(x, dx)
-   
+    dx:div(g_opts.nworker)   
     local f = function(x0) return x, dx end
     if not g_optim_listener_state then g_optim_listener_state = {} end
     local config = {learningRate = g_opts.lrate}

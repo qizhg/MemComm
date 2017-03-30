@@ -1,42 +1,74 @@
 
 --torch.manualSeed(451)
-torch.setdefaulttensortype('torch.FloatTensor')
-paths.dofile('util.lua')
-paths.dofile('mazebase/init.lua')
-paths.dofile('model/listener_model.lua')
-paths.dofile('model/speaker_model.lua')
-paths.dofile('train.lua')
 
-require'gnuplot'
+local function init()
+	torch.setdefaulttensortype('torch.FloatTensor')
+	paths.dofile('util.lua')
+	paths.dofile('model/listener_model.lua')
+	paths.dofile('model/speaker_model.lua')
+	paths.dofile('train.lua')
+	paths.dofile('mazebase/init.lua')
+end
+
+local function init_threads()
+    print('starting ' .. g_opts.nworker .. ' workers')
+    local threads = require('threads')
+    threads.Threads.serialization('threads.sharedserialize')
+    local workers = threads.Threads(g_opts.nworker, init)
+    workers:specific(true)
+    for w = 1, g_opts.nworker do
+        workers:addjob(w,
+            function(opts_orig, vocab_orig)
+                g_opts = opts_orig
+                g_vocab = vocab_orig
+                g_init_listener_model()
+				g_init_speaker_model()
+                g_mazebase.init_game()
+            end,
+            function() end,
+            g_opts, g_vocab
+        )
+    end
+    workers:synchronize()
+    return workers
+end
+
+init()
+
 
 local cmd = torch.CmdLine()
+-- threads
+cmd:option('--nworker', 4, 'the number of threads used for training')
 -- model parameters
-cmd:option('--nhop', 1, 'the number of model steps per action')
 cmd:option('--hidsz', 20, 'the size of the internal state vector')
-cmd:option('--memsize', 10, 'memorize the last 3 time steps')
-cmd:option('--nonlin', 'tanh', 'non-linearity type: tanh | relu | none')
+cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.2, 'STD of initial weights')
 -- game parameters
-cmd:option('--nagents', 1, 'the number of agents')
-cmd:option('--nactions', 5, 'the number of agent actions')
 cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
 -- training parameters
-cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
-cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
+---------
+cmd:option('--epochs', 100, 'the number of training epochs')
+cmd:option('--nbatches', 1, 'the number of mini-batches in one epoch')
+cmd:option('--batch_size', 2, 'size of mini-batch (the number of parallel games) in each thread')
+---- lr
 cmd:option('--lrate', 1e-3, 'learning rate')
-cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
-cmd:option('--beta', 0, 'coefficient of baseline term in the cost function')
+---- epsilon
 cmd:option('--eps_start', 0.2, 'eps')
 cmd:option('--eps_end', 0.05, 'eps')
 cmd:option('--eps_end_batch', 10000, 'eps')
-cmd:option('--epochs', 100, 'the number of training epochs')
-cmd:option('--nbatches', 50, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size', 10, 'size of mini-batch (the number of parallel games) in each thread')
+---- Gumbel
+cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
+---- baseline mixing
+cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
+---- entropy mixing
+cmd:option('--beta', 0, 'coefficient of baseline term in the cost function')
+---- clipping
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
 cmd:option('--clip_grad', 0, 'gradient clip value')
 -- for optim
+cmd:option('--optim', 'rmsprop', 'optimization method: rmsprop | sgd | adam')
 cmd:option('--momentum', 0, 'momentum for SGD')
 cmd:option('--wdecay', 0, 'weight decay for SGD')
 cmd:option('--rmsprop_alpha', 0.97, 'parameter of RMSProp')
@@ -52,12 +84,18 @@ g_opts = cmd:parse(arg or {})
 
 g_mazebase.init_vocab()
 g_mazebase.init_game()
-g_init_listener_model()
-g_init_speaker_model()
 
+if g_opts.nworker > 1 then
+    g_workers = init_threads()
+end
 
 g_log = {}
-train(g_opts.epochs)
+g_init_listener_model()
+g_init_speaker_model()
+g_load_model()
+
+train(g_opts.epochs - #g_log)
+g_save_model()
 
 --g = g_mazebase.new_game()
 
