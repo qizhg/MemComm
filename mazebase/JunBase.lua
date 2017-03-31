@@ -119,20 +119,26 @@ end
 
 -- 3D map representation for conv model 
 function JunBase:to_fullmap_obs()
-    local num_channels = 3 + self.num_types_objects * 2 --3: block, water, listener
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + self.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + self.num_types_objects
+    end
     local map = torch.Tensor(num_channels,self.map.height, self.map.width)
     map:fill(0)
     for y = 1, self.map.height do
         for x = 1, self.map.width do
             for _,e in ipairs(self.map.items[y][x]) do
                 local itemtype_id = self.ItemType2id[e.type]
+                local obj_id = itemtype_id -3
                 if itemtype_id <= 3 then
                     map[itemtype_id][y][x] = 1
+                elseif g_opts.pickup_enable == false then
+                    map[3 + obj_id ][y][x] = 1
                 elseif e.attr.picked_up == false then
-                    local obj_id = itemtype_id -3
                     map[3 + obj_id ][y][x] = 1
                 elseif e.attr.picked_up == true then
-                    local obj_id = itemtype_id -3
                     map[3 + self.num_types_objects + obj_id][y][x] = 1
                 else
                     --
@@ -148,7 +154,12 @@ function JunBase:to_localmap_obs(agent, visibility)
     local agent = agent or self.listener
     local visibility = visibility or self.listener_visibility
 
-    local num_channels = 3 + self.num_types_objects * 2 --3: block, water, listener
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + self.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + self.num_types_objects
+    end
     local local_map = torch.Tensor(num_channels,visibility*2 + 1, visibility*2 + 1)
     local_map:fill(0)
     local yy,xx
@@ -160,13 +171,14 @@ function JunBase:to_localmap_obs(agent, visibility)
             xx = xx + 1
             for _,e in ipairs(self.map.items[y][x]) do
                 local itemtype_id = self.ItemType2id[e.type]
+                local obj_id = itemtype_id -3
                 if itemtype_id <= 3 then
                     local_map[itemtype_id][yy][xx] = 1
+                elseif g_opts.pickup_enable == false then
+                    local_map[3 + obj_id ][yy][xx] = 1
                 elseif e.attr.picked_up == false then
-                    local obj_id = itemtype_id -3
                     local_map[3 + obj_id  ][yy][xx] = 1
                 elseif e.attr.picked_up == true then
-                    local obj_id = itemtype_id -3
                     local_map[3 + self.num_types_objects + obj_id][yy][xx] = 1
                 else
                     --

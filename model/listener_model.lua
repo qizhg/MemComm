@@ -1,6 +1,7 @@
 
 require('nn')
 require('nngraph')
+paths.dofile('LinearNB.lua')
 
 local function nonlin()
     if g_opts.nonlin == 'tanh' then
@@ -57,7 +58,12 @@ function g_build_listener_model()
     g_listener_modules['prev_cell'] = prev_cell.data.module
 
     --game parameters
-    local num_channels = 3 + g_opts.num_types_objects * 2
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + g_opts.num_types_objects
+    end
     local visibility = g_opts.listener_visibility
     local num_symbols = g_opts.num_symbols
 
@@ -86,7 +92,7 @@ function g_build_listener_model()
     local localmap_embedding = nonlin()(nn.Linear(out_dim, g_opts.hidsz)(fc_view))
 
     --apply embedding to 1-hot symbol
-    local symbol_embedding = nn.Linear(num_symbols, g_opts.hidsz)(symbol)
+    local symbol_embedding = nn.LinearNB(num_symbols, g_opts.hidsz)(symbol)
 
     --concat 2 embeddings as input to lstm
     local lstm_input = nn.JoinTable(2)({localmap_embedding,symbol_embedding}) --(#batch, g_opts.hidsz*2)

@@ -25,7 +25,12 @@ function batch_active(batch)
 end
 
 function batch_speaker_map(batch, active)
-    local num_channels = 3 + g_opts.num_types_objects * 2
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + g_opts.num_types_objects
+    end
     local map = torch.Tensor(#batch, num_channels, g_opts.map_height, g_opts.map_width)    
     map:fill(0)
     for i, g in pairs(batch) do
@@ -37,7 +42,12 @@ function batch_speaker_map(batch, active)
 end
 
 function batch_listener_localmap(batch, active)
-    local num_channels = 3 + g_opts.num_types_objects * 2
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + g_opts.num_types_objects
+    end
     local visibility = g_opts.listener_visibility
     local localmap = torch.Tensor(#batch, num_channels, visibility*2+1, visibility*2+1)
     localmap:fill(0)

@@ -31,7 +31,7 @@ sso.max_attributes = g_opts.max_attributes or 6
 -------------------------
 sso.num_types_objects = 5
 sso.min_num_objects = 1 --min number of a type of object
-sso.max_num_objects = 3 --max number of a type of object
+sso.max_num_objects = 1 --max number of a type of object
 -------------------------------------------------------
 sso.num_symbols = 5
 sso.listener_visibility = 0

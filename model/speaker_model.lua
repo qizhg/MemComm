@@ -55,7 +55,12 @@ function g_build_speaker_model(task_id)
     g_speaker_modules[task_id]['prev_cell'] = prev_cell.data.module
 
     --game parameters
-    local num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + g_opts.num_types_objects
+    end
 
     --apply conv-fc to map
     local n_featuremaps = {3, 16, 32}
@@ -89,15 +94,11 @@ function g_build_speaker_model(task_id)
     --apply fc to lstm hid to get action_prob
     local hid_act = nonlin()(nn.Linear(lstm_hidsz, lstm_hidsz)(hidstate))
     local symbols = nn.Linear(lstm_hidsz, g_opts.num_symbols)(hid_act)
-    local symbols_logprob = nn.LogSoftMax()(symbols) --(#batch, num_symbols)
+    local symbol_logprob = nn.LogSoftMax()(symbols) --(#batch, num_symbols)
     
-    --Gumbel SoftMax
-    local Gumbel_noise = nn.Identity()() --(#batch, num_symbols)
-    local Gumbel_trick = nn.CAddTable()({Gumbel_noise, symbols_logprob})
-    local Gumbel_trick_temp = nn.MulConstant(1.0/g_opts.Gumbel_temp)(Gumbel_trick)
-    local Gumbel_SoftMax = nn.SoftMax()(Gumbel_trick_temp)
-    local model = nn.gModule({map, prev_hid, prev_cell, Gumbel_noise},
-                             {Gumbel_SoftMax,hidstate, cellstate})
+
+    local model = nn.gModule({map, prev_hid, prev_cell},
+                             {symbol_logprob, hidstate, cellstate})
     return model
 end
 

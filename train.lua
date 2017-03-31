@@ -1,5 +1,18 @@
-require'optim'
+require 'optim'
+require('nn')
+require('nngraph')
 g_disp = require('display')
+
+local function build_Gumbel_SoftMax(logp, noise)
+    local noise = noise or nn.Identity()()
+    local logp = logp or nn.Identity()()
+    local Gumbel_trick = nn.CAddTable()({noise, logp})
+    local Gumbel_trick_temp = nn.MulConstant(1.0/g_opts.Gumbel_temp)(Gumbel_trick)
+    local Gumbel_SoftMax = nn.SoftMax()(Gumbel_trick_temp)
+    local model = nn.gModule({logp, noise}, {Gumbel_SoftMax})
+
+    return model
+end
 
 function train_batch(task_id)
 	local batch = batch_init(g_opts.batch_size, task_id)
@@ -18,7 +31,7 @@ function train_batch(task_id)
     speaker.cell[0] = torch.Tensor(#batch, speaker_hidsz):fill(0)
 
     local listener = {}
-    local listener_hidsz = 2*g_opts.hidsz
+    local listener_hidsz = 2 * g_opts.hidsz
     listener.localmap  = {}
     listener.symbol    = {}
     listener.hid = {} 
@@ -29,6 +42,7 @@ function train_batch(task_id)
 
 
     local Gumbel_noise = {}
+    local symbol_logp = {}
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
@@ -37,18 +51,21 @@ function train_batch(task_id)
 
         --speaker
     	speaker.map[t] = batch_speaker_map(batch,active[t])
-        Gumbel_noise[t] = torch.rand(#batch, g_opts.num_symbols):log():neg():log():neg()
-        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]})
-        ----speaker_out  = {Gumbel_SoftMax, hidstate, cellstate}
+        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
+        ----speaker_out  = {symbols_logprob, hidstate, cellstate}
         speaker.hid[t] = speaker_out[2]:clone()
         speaker.cell[t] = speaker_out[3]:clone()
 
-        --speaker-listener comm
-        listener.symbol[t] = speaker_out[1]:clone()
+        --speaker-listener comm Gumbel
+        local Gumbel = build_Gumbel_SoftMax()
+        Gumbel_noise[t] = torch.rand(#batch, g_opts.num_symbols):log():neg():log():neg()
+        symbol_logp[t] = speaker_out[1]:clone()
+        listener.symbol[t] = Gumbel:forward({symbol_logp[t],Gumbel_noise[t]})
+        
         --listener forward and act
         listener.localmap[t] = batch_listener_localmap(batch,active[t])
         local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
-        ----  listener_out = {action_prob, baseline, hidstate, cellstate}
+        ----listener_out = {action_prob, baseline, hidstate, cellstate}
         listener.hid[t] = listener_out[3]:clone()
         listener.cell[t] = listener_out[4]:clone()
         listener.action[t] = sample_multinomial(torch.exp(listener_out[1]))  --(#batch, 1)
@@ -75,17 +92,25 @@ function train_batch(task_id)
         --listener
         local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
         ----  listener_out = {action_logprob, baseline, hidstate, cellstate}
+        
         ---- compute listener_grad baseline
         local listener_baseline = listener_out[2] --(#batch, 1)
         local R = reward_sum:clone() --(#batch, )
         listener_baseline:cmul(active[t]) --(#batch, 1) 
         R:cmul(active[t]) --(#batch, )
-        local listener_grad_baseline = g_listener_bl_loss:backward(listener_baseline, R):mul(g_opts.alpha) --(#batch, 1)
+        local listener_grad_baseline = g_listener_bl_loss:backward(listener_baseline, R):mul(g_opts.alpha):div(#batch) --(#batch, 1)
         
-        --  using REINFORCE
+        ----  compute listener_grad_action via REINFORCE
         local listener_grad_action = torch.Tensor(#batch, g_opts.listener_nactions):zero()
         local R_action = listener_baseline - R
         listener_grad_action:scatter(2, listener.action[t], R_action)
+        ----  compute listener_grad_action with entropy regularization
+        local logp = listener_out[1]
+        local entropy_grad = logp:clone():add(1)
+        entropy_grad:cmul(torch.exp(logp))
+        entropy_grad:mul(g_opts.beta)
+        entropy_grad:cmul(active[t]:view(-1,1):expandAs(entropy_grad):clone())
+        listener_grad_action:add(entropy_grad)
         listener_grad_action:div(#batch)
 
         --listener_backward and cache grad_hid, grad_cell, grad symbol
@@ -94,13 +119,20 @@ function train_batch(task_id)
         
         listener_grad_hid = g_listener_modules['prev_hid'].gradInput:clone()
         listener_grad_cell = g_listener_modules['prev_cell'].gradInput:clone()
-        grad_symbol = g_listener_modules['symbol'].gradInput:clone()
+        local grad_symbol = g_listener_modules['symbol'].gradInput:clone()
+
+        --comm Gumbel SoftMax
+        local symbol_logp_node = nn.Identity()()
+        local Gumbel = build_Gumbel_SoftMax(symbol_logp_node)
+        Gumbel:forward({symbol_logp[t],Gumbel_noise[t]})
+        Gumbel:backward( {symbol_logp[t],Gumbel_noise[t]}, grad_symbol)
+        local grad_symbol_logp = symbol_logp_node.data.module.gradInput:clone()
 
         --speaker
-        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]})
-        ----speaker_out  = {Gumbel_SoftMax, hidstate, cellstate}
-        g_speaker_model[task_id]:backward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1], Gumbel_noise[t]},
-                                {grad_symbol, speaker_grad_hid, speaker_grad_cell})
+        g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
+        ----speaker_out  = {symbol_logprob, hidstate, cellstate}
+        g_speaker_model[task_id]:backward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]},
+                                {grad_symbol_logp, speaker_grad_hid, speaker_grad_cell})
         speaker_grad_hid = g_speaker_modules[task_id]['prev_hid'].gradInput:clone()
         speaker_grad_cell = g_speaker_modules[task_id]['prev_cell'].gradInput:clone()
     end
