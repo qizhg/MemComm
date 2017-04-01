@@ -96,6 +96,73 @@ function g_build_speaker_model()
     return model
 end
 
+function g_build_speaker_model()
+    --input table
+    local map = nn.Identity()() --(#batch, num_channels, map_height, map_width)
+
+    --game parameters
+    local num_channels
+    if g_opts.pickup_enable == true then
+        num_channels = 3 + g_opts.num_types_objects * 2 --3: block, water, listener
+    else
+        num_channels = 3 + g_opts.num_types_objects
+    end
+
+    --apply conv-fc to map
+    local n_featuremaps = {3, 16, 64}
+    local filter_size =   {1, 1, 3}
+    local filter_stride = {1, 1, 1}
+    local d = g_opts.map_height
+
+    local conv1 = nn.SpatialConvolution(num_channels, n_featuremaps[1], 
+                                filter_size[1], filter_size[1], 
+                                filter_stride[1], filter_stride[1])(map)
+    local nonl1 = nonlin()(conv1)
+    
+    local conv2 = nn.SpatialConvolution(n_featuremaps[1], n_featuremaps[2], 
+                                filter_size[2], filter_size[2], 
+                                filter_stride[2], filter_stride[2])(nonl1)
+    local nonl2 = nonlin()(conv2)
+
+    local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
+    d = math.floor(d / 2)
+    
+    local conv3 = nn.SpatialConvolution(n_featuremaps[2], n_featuremaps[3], 
+                                filter_size[3], filter_size[3], 
+                                filter_stride[3], filter_stride[3])(pool2)
+    local nonl3 = nonlin()(conv3)
+    d = d - 2 
+
+    local out_dim = d * d * n_featuremaps[3]
+    local fc_view = nn.View(out_dim):setNumInputDims(3)(nonl3)
+    local map_embedding = nonlin()(nn.Linear(out_dim, g_opts.hidsz)(fc_view))
+
+    if g_opts.lstm == false then 
+        local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
+        local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
+        local action_prob = nn.LogSoftMax()(action)
+        local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
+        local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl)
+        local model = nn.gModule({map}, {action_prob, baseline})
+        return model
+    else --lstm with hidsz
+        local prev_hid = nn.Identity()() --(#batch, lstm_hidsz)
+        g_speaker_modules['prev_hid'] = prev_hid.data.module
+        local prev_cell = nn.Identity()() --(#batch, lstm_hidsz)
+        g_speaker_modules['prev_cell'] = prev_cell.data.module
+        local lstm_input = map_embedding
+        local hidstate, cellstate = build_lstm(lstm_input, prev_hid, prev_cell, g_opts.hidsz)
+
+        local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(hidstate))
+        local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
+        local action_prob = nn.LogSoftMax()(action)
+        local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(hidstate))
+        local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl)
+        local model = nn.gModule({map, prev_hid, prev_cell}, {action_prob, baseline, hidstate, cellstate})
+        return model
+    end
+end
+
 
 function g_init_speaker_model()
     g_speaker_model   = {}

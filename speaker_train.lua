@@ -14,20 +14,27 @@ local function speaker_train_batch(task_id)
 
 
     local speaker = {}
-    local speaker_hidsz = g_opts.hidsz
     speaker.map = {}
     speaker.hid = {} 
     speaker.cell = {}
-    speaker.hid[0] = torch.Tensor(#batch, speaker_hidsz):fill(0)
-    speaker.cell[0] = torch.Tensor(#batch, speaker_hidsz):fill(0)
+    speaker.hid[0] = torch.Tensor(#batch, g_opts.hidsz):fill(0)
+    speaker.cell[0] = torch.Tensor(#batch, g_opts.hidsz):fill(0)
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
         active[t] = batch_active(batch)
 
     	speaker.map[t] = batch_speaker_map(batch,active[t])
-        local speaker_out = g_speaker_model:forward(speaker.map[t])
-        ----speaker_out  = {symbols_logprob, symbol_baseline}
+        local speaker_out
+        if g_opts.lstm == false then
+            speaker_out = g_speaker_model:forward(speaker.map[t])
+            ----speaker_out  = {symbols_logprob, symbol_baseline}
+        else
+            speaker_out = g_speaker_model:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
+            ----speaker_out  = {symbols_logprob, symbol_baseline, hidstate, cellstate}
+            speaker.hid[t] = speaker_out[3]:clone()
+            speaker.cell[t] = speaker_out[4]:clone()
+        end
 
         baseline[t] = speaker_out[2]:clone():cmul(active[t])
         action[t] = sample_multinomial(torch.exp(speaker_out[1])) --(#batch, 1)
@@ -54,15 +61,22 @@ local function speaker_train_batch(task_id)
 
 
     --backward pass
+    local grad_hid = torch.Tensor(#batch, g_opts.hidsz):fill(0)
+    local grad_cell = torch.Tensor(#batch, g_opts.hidsz):fill(0)
+
     g_speaker_paramdx:zero()
     local reward_sum = torch.Tensor(#batch):zero() --running reward sum
     local norm = 0
     for t = g_opts.max_steps, 1, -1 do
         reward_sum:add(reward[t])
 
-        --speaker
-        local speaker_out =g_speaker_model:forward(speaker.map[t])
-        ----  speaker_out  = {symbol_logprob, symbol_baseline}
+        local speaker_out
+        if g_opts.lstm == false then
+            speaker_out =g_speaker_model:forward(speaker.map[t])
+            ----  speaker_out  = {symbol_logprob, symbol_baseline}
+        else
+            speaker_out = g_speaker_model:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
+        end
          ---- compute speaker_grad baseline
         local R = reward_sum:clone() --(#batch, )
         R:cmul(active[t]) --(#batch, )
@@ -83,8 +97,14 @@ local function speaker_train_batch(task_id)
         entropy_grad:cmul(active[t]:view(-1,1):expandAs(entropy_grad):clone())
         grad_symbol_logp:add(entropy_grad)
         grad_symbol_logp:div(#batch/8)
-        g_speaker_model:backward(speaker.map[t],
-                                {grad_symbol_logp, grad_baseline})
+        if g_opts.lstm == false then
+            g_speaker_model:backward(speaker.map[t], {grad_symbol_logp, grad_baseline})
+        else
+            g_speaker_model:backward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]},
+                                {grad_symbol_logp, grad_baseline, grad_hid, grad_cell})
+            grad_hid = g_speaker_modules['prev_hid'].gradInput:clone()
+            grad_cell = g_speaker_modules['prev_cell'].gradInput:clone()
+        end
     end
     print(g_speaker_paramdx:norm())
 

@@ -43,9 +43,10 @@ local cmd = torch.CmdLine()
 -- threads
 cmd:option('--nworker', 1, 'the number of threads used for training')
 -- model parameters
-cmd:option('--hidsz', 16, 'the size of the internal state vector')
+cmd:option('--hidsz', 20, 'the size of the internal state vector')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
-cmd:option('--init_std', 0.2, 'STD of initial weights')
+cmd:option('--init_std', 0.1, 'STD of initial weights')
+cmd:option('--lstm', true, '')
 -- game parameters
 cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
