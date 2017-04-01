@@ -43,9 +43,9 @@ local cmd = torch.CmdLine()
 -- threads
 cmd:option('--nworker', 1, 'the number of threads used for training')
 -- model parameters
-cmd:option('--hidsz', 20, 'the size of the internal state vector')
+cmd:option('--hidsz', 16, 'the size of the internal state vector')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
-cmd:option('--init_std', 0.1, 'STD of initial weights')
+cmd:option('--init_std', 0.2, 'STD of initial weights')
 -- game parameters
 cmd:option('--max_steps', 20, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
@@ -55,8 +55,8 @@ cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size',512, 'size of mini-batch (the number of parallel games) in each thread')
 ---- GAE
-cmd:option('--gamma', 1.0, 'size of mini-batch (the number of parallel games) in each thread')
-cmd:option('--lambda', 1.0, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--gamma', 0.99, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--lambda', 0.95, 'size of mini-batch (the number of parallel games) in each thread')
 ---- lr
 cmd:option('--lrate', 1e-3, 'learning rate')
 ---- Gumbel
@@ -65,7 +65,7 @@ cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 ---- entropy mixing
 cmd:option('--beta_start', 0.01, 'coefficient of listener entropy mixing')
-cmd:option('--beta_end_batch', 100*80, '')
+cmd:option('--beta_end_batch', 100*70, '')
 ---- clipping
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')

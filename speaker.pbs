@@ -1,14 +1,14 @@
 #!/bin/sh
 ####  PBS preamble
 
-#PBS -N speakerLSTM
+#PBS -N speaker
 
 # Change "bjensen" to your uniqname:
 #PBS -M qizhg@umich.edu
 #PBS -m abe
 
 # Change the number of cores (ppn=1), amount of memory, and walltime:
-#PBS -l nodes=1:ppn=4,mem=1000mb,walltime=00:05:00
+#PBS -l nodes=1:ppn=4,mem=1000mb,walltime=08:00:00
 #PBS -j oe
 #PBS -V
 

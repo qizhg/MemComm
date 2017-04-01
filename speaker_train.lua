@@ -66,7 +66,7 @@ local function speaker_train_batch(task_id)
          ---- compute speaker_grad baseline
         local R = reward_sum:clone() --(#batch, )
         R:cmul(active[t]) --(#batch, )
-        local grad_baseline = g_speaker_bl_loss:backward(baseline[t], R):mul(g_opts.alpha):div(#batch/16) --(#batch, 1)
+        local grad_baseline = g_speaker_bl_loss:backward(baseline[t], R):mul(g_opts.alpha):div(#batch/8) --(#batch, 1)
     
         ----  compute speaker_grad_action via GAE
         local grad_symbol_logp = torch.Tensor(#batch, g_opts.num_symbols):zero()
@@ -82,7 +82,7 @@ local function speaker_train_batch(task_id)
         entropy_grad:mul(beta)
         entropy_grad:cmul(active[t]:view(-1,1):expandAs(entropy_grad):clone())
         grad_symbol_logp:add(entropy_grad)
-        grad_symbol_logp:div(#batch/16)
+        grad_symbol_logp:div(#batch/8)
         g_speaker_model:backward(speaker.map[t],
                                 {grad_symbol_logp, grad_baseline})
     end
