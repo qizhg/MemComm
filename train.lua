@@ -1,7 +1,7 @@
 require 'optim'
 require('nn')
 require('nngraph')
-g_disp = require('display')
+--g_disp = require('display')
 
 local function build_Gumbel_SoftMax(logp, noise)
     local noise = noise or nn.Identity()()
@@ -46,7 +46,7 @@ function train_batch(task_id)
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
-        g_disp.image(batch[1].map:to_image())
+        --g_disp.image(batch[1].map:to_image())
         active[t] = batch_active(batch)
 
         --speaker
@@ -105,10 +105,13 @@ function train_batch(task_id)
         local R_action = listener_baseline - R
         listener_grad_action:scatter(2, listener.action[t], R_action)
         ----  compute listener_grad_action with entropy regularization
+        local num_batchs = (episode_num-1)*g_opts.nbatches + batch_num
+        local beta = g_opts.beta_start - num_batchs*g_opts.beta_start/g_opts.beta_end_batch
+        beta = math.max(0,beta)
         local logp = listener_out[1]
         local entropy_grad = logp:clone():add(1)
         entropy_grad:cmul(torch.exp(logp))
-        entropy_grad:mul(g_opts.beta)
+        entropy_grad:mul(beta)
         entropy_grad:cmul(active[t]:view(-1,1):expandAs(entropy_grad):clone())
         listener_grad_action:add(entropy_grad)
         listener_grad_action:div(#batch)
@@ -157,8 +160,10 @@ end
 function train(N)
 	local threashold = 20
     for n = 1, N do
+        episode_num = n
         local stat = {} --for the epoch
 		for k = 1, g_opts.nbatches do
+            batch_num = k
             local task_id = 1 --all game in a batch share the same task
             if g_opts.nworker > 1 then
                 g_listener_paramdx:zero()
@@ -201,7 +206,7 @@ function train(N)
 end
 
 function g_update_speaker_param(x, dx, task_id)
-    dx:div(g_opts.nworker)   
+    dx:div(g_opts.nworker)
     local f = function(x0) return x, dx end
     if not g_optim_speaker_state then
         g_optim_speaker_state = {}
@@ -231,7 +236,7 @@ function g_update_speaker_param(x, dx, task_id)
 end
 
 function g_update_listener_param(x, dx)
-    dx:div(g_opts.nworker)   
+    dx:div(g_opts.nworker) 
     local f = function(x0) return x, dx end
     if not g_optim_listener_state then g_optim_listener_state = {} end
     local config = {learningRate = g_opts.lrate}
@@ -252,5 +257,6 @@ function g_update_listener_param(x, dx)
     else
         error('wrong optim')
     end
+    
 
 end

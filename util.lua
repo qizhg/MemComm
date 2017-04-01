@@ -167,7 +167,7 @@ function g_save_model()
         f = {opts=g_opts, paramx={g_listener_paramx, g_speaker_paramx}, log=g_log}
         if g_optim_state then f['optim_state'] = g_optim_state end
         torch.save(g_opts.save, f)
-        print('model saved to ', g_opts.save)
+        --print('model saved to ', g_opts.save)
     end
 end
 

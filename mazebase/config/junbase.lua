@@ -3,8 +3,8 @@ g_opts.multigames = {}
 -------------------
 --some shared RangeOpts
 --current min, current max, min max, max max, increment
-local mapH = torch.Tensor{10,10,5,10,1}
-local mapW = torch.Tensor{10,10,5,10,1}
+local mapH = torch.Tensor{8,8,5,10,1}
+local mapW = torch.Tensor{8,8,5,10,1}
 local blockspct = torch.Tensor{.0,.0, 0,.2,.01}
 local waterpct = torch.Tensor{.0,.0, 0,.2,.01}
 
@@ -29,7 +29,7 @@ sso.enable_corners = 0
 sso.enable_boundary = 1
 sso.max_attributes = g_opts.max_attributes or 6
 -------------------------
-sso.num_types_objects = 5
+sso.num_types_objects = 3
 sso.min_num_objects = 1 --min number of a type of object
 sso.max_num_objects = 1 --max number of a type of object
 -------------------------------------------------------
