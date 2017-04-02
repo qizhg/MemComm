@@ -3,8 +3,8 @@ g_opts.multigames = {}
 -------------------
 --some shared RangeOpts
 --current min, current max, min max, max max, increment
-local mapH = torch.Tensor{8,8,5,10,1}
-local mapW = torch.Tensor{8,8,5,10,1}
+local mapH = torch.Tensor{6,6,5,10,1}
+local mapW = torch.Tensor{6,6,5,10,1}
 local blockspct = torch.Tensor{.0,.0, 0,.2,.01}
 local waterpct = torch.Tensor{.0,.0, 0,.2,.01}
 

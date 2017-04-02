@@ -46,9 +46,9 @@ cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--hidsz', 32, 'the size of the internal state vector')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.1, 'STD of initial weights')
-cmd:option('--lstm', true, '')
+cmd:option('--lstm', false, '')
 -- game parameters
-cmd:option('--max_steps', 20, 'force to end the game after this many steps')
+cmd:option('--max_steps', 10, 'force to end the game after this many steps')
 cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration file for games')
 -- training parameters
 ---------
@@ -57,16 +57,16 @@ cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
 cmd:option('--batch_size',512, 'size of mini-batch (the number of parallel games) in each thread')
 ---- GAE
 cmd:option('--gamma', 0.99, 'size of mini-batch (the number of parallel games) in each thread')
-cmd:option('--lambda', 0.96, 'size of mini-batch (the number of parallel games) in each thread')
----- lr
-cmd:option('--lrate', 2.5e-4, 'learning rate')
+cmd:option('--lambda', 0.9, 'size of mini-batch (the number of parallel games) in each thread')
+---- lr aneeal??
+cmd:option('--lrate', 1e-3, 'learning rate')
 ---- Gumbel
 cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
 ---- baseline mixing
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 ---- entropy mixing
-cmd:option('--beta_start', 0.02, 'coefficient of listener entropy mixing')
-cmd:option('--beta_end_batch', 100*50, '')
+cmd:option('--beta_start', 0.1, 'coefficient of listener entropy mixing')
+cmd:option('--beta_end_batch', 100*75, '')
 ---- clipping
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')

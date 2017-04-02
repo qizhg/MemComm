@@ -148,10 +148,8 @@ function g_load_model()
             return
         end
         local f = torch.load(g_opts.load)
-        g_listener_paramx:copy(f.paramx.g_listener_paramx)
-        for task_id = 1, g_opts.num_tasks do
-            g_speaker_paramx[task_id]:copy(f.paramx.g_speaker_paramx[task_id])
-        end 
+        g_speaker_paramx:copy(f.paramx[2])
+         
         g_log = f.log
         g_plot_stat = {}
         for i = 1, #g_log do

@@ -59,9 +59,12 @@ function g_build_speaker_model()
     end
 
     --apply conv-fc to map
-    local n_featuremaps = {3, 16, 64}
-    local filter_size =   {1, 1, 3}
-    local filter_stride = {1, 1, 1}
+    g_opts.n_featuremaps = {3, 16, 64}
+    g_opts.filter_size =   {1, 1, 3}
+    g_opts.filter_stride = {1, 1, 1}
+    local n_featuremaps = g_opts.n_featuremaps
+    local filter_size = g_opts.filter_size
+    local filter_stride = g_opts.filter_stride
     local d = g_opts.map_height
 
     local conv1 = nn.SpatialConvolution(num_channels, n_featuremaps[1], 
@@ -124,12 +127,12 @@ function g_build_speaker_model()
                                 filter_stride[2], filter_stride[2])(nonl1)
     local nonl2 = nonlin()(conv2)
 
-    local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
-    d = math.floor(d / 2)
+    --local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
+    --d = math.floor(d / 2)
     
     local conv3 = nn.SpatialConvolution(n_featuremaps[2], n_featuremaps[3], 
                                 filter_size[3], filter_size[3], 
-                                filter_stride[3], filter_stride[3])(pool2)
+                                filter_stride[3], filter_stride[3])(nonl2)
     local nonl3 = nonlin()(conv3)
     d = d - 2 
 
