@@ -65,8 +65,8 @@ cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
 ---- baseline mixing
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 ---- entropy mixing
-cmd:option('--beta_start', 0.1, 'coefficient of listener entropy mixing')
-cmd:option('--beta_end_batch', 100*75, '')
+cmd:option('--beta_start', 0.00, 'coefficient of listener entropy mixing')
+cmd:option('--beta_end_batch', 100*5, '')
 ---- clipping
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')
