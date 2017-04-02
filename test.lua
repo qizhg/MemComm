@@ -10,6 +10,7 @@ local function init()
 	paths.dofile('train.lua')
     --paths.dofile('listener_train.lua')
     paths.dofile('speaker_train.lua')
+    paths.dofile('run.lua')
 	paths.dofile('mazebase/init.lua')
 end
 
@@ -54,19 +55,26 @@ cmd:option('--games_config_path', 'mazebase/config/junbase.lua', 'configuration 
 ---------
 cmd:option('--epochs', 100, 'the number of training epochs')
 cmd:option('--nbatches', 100, 'the number of mini-batches in one epoch')
-cmd:option('--batch_size',512, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--batch_size', 64, 'size of mini-batch (the number of parallel games) in each thread')
 ---- GAE
-cmd:option('--gamma', 0.99, 'size of mini-batch (the number of parallel games) in each thread')
-cmd:option('--lambda', 0.9, 'size of mini-batch (the number of parallel games) in each thread')
+cmd:option('--gamma', 0.99, '')
+cmd:option('--lambda', 0.9, '')
 ---- lr aneeal??
 cmd:option('--lrate', 1e-3, 'learning rate')
+cmd:option('--lrate_start', 1e-3, 'coefficient of listener entropy mixing')
+cmd:option('--lrate_end_batch', 100*50, '')
 ---- Gumbel
 cmd:option('--Gumbel_temp', 1.0, 'fixed Gumbel_temp')
 ---- baseline mixing
 cmd:option('--alpha', 0.03, 'coefficient of baseline term in the cost function')
 ---- entropy mixing
-cmd:option('--beta_start', 0.00, 'coefficient of listener entropy mixing')
-cmd:option('--beta_end_batch', 100*5, '')
+cmd:option('--beta_start', 0.01, 'coefficient of listener entropy mixing')
+cmd:option('--beta_end_batch', 100*2, '')
+---- eps mixing
+cmd:option('--eps_start', 0.3, '')
+cmd:option('--eps_end_batch', 100*50, '')
+---- target_period
+cmd:option('--target_period', 100*2, '')
 ---- clipping
 cmd:option('--reward_mult', 1, 'coeff to multiply reward for bprop')
 cmd:option('--max_grad_norm', 0, 'gradient clip value')

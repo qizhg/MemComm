@@ -5,15 +5,38 @@ require('nngraph')
 
 local function speaker_train_batch(task_id)
 	local batch = batch_init(g_opts.batch_size, task_id)
+    local num_batchs = (epoch_num-1)*g_opts.nbatches + batch_num
+
+
+    --for SL
+
+    local SL = false
+    local dst = {}
+    local a = batch_active(batch)
+    local map = batch_speaker_map(batch, a)
+    for i = 1, #batch do
+        dst[i]= {}
+        for y = 1, g_opts.map_height do
+            for x = 1, g_opts.map_width do
+                if map[i][4][y][x] == 1 then
+                    dst[i].y=y
+                    dst[i].x=x
+                end
+            end
+        end
+    end
+
 	
     -- record the episode
     local active = {}
     local reward = {}
     local action = {}
     local baseline = {}
+    local baseline_target = {}
 
 
     local speaker = {}
+    speaker.loc = {}
     speaker.map = {}
     speaker.hid = {} 
     speaker.cell = {}
@@ -23,11 +46,17 @@ local function speaker_train_batch(task_id)
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
         active[t] = batch_active(batch)
-
     	speaker.map[t] = batch_speaker_map(batch,active[t])
-        local speaker_out
+        speaker.loc[t]={}
+        for i = 1, #batch do
+            speaker.loc[t][i]={}
+            speaker.loc[t][i].y = batch[i].listener.loc.y
+            speaker.loc[t][i].x = batch[i].listener.loc.x
+        end
+        local speaker_out, target_out
         if g_opts.lstm == false then
             speaker_out = g_speaker_model:forward(speaker.map[t])
+            target_out = g_speaker_model_target:forward(speaker.map[t])
             ----speaker_out  = {symbols_logprob, symbol_baseline}
         else
             speaker_out = g_speaker_model:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
@@ -37,6 +66,17 @@ local function speaker_train_batch(task_id)
         end
 
         baseline[t] = speaker_out[2]:clone():cmul(active[t])
+        baseline_target[t] = target_out[2]:clone():cmul(active[t])
+
+
+        local ep = g_opts.eps_start - num_batchs*g_opts.eps_start/g_opts.eps_end_batch
+        ep = math.max(ep,0.05)
+        if torch.uniform() < ep then
+            action[t] = torch.LongTensor(#batch,1)
+            action[t]:random(1, g_opts.num_symbols)
+        else
+            action[t] = sample_multinomial(torch.exp(speaker_out[1]))  --(#batch, 1)
+        end
         action[t] = sample_multinomial(torch.exp(speaker_out[1])) --(#batch, 1)
 
 
@@ -51,7 +91,7 @@ local function speaker_train_batch(task_id)
     local delta = {} --TD residual
     delta[g_opts.max_steps] = reward[g_opts.max_steps] - baseline[g_opts.max_steps]
     for t=1, g_opts.max_steps-1 do 
-        delta[t] = reward[g_opts.max_steps] + g_opts.gamma*baseline[t+1] - baseline[t]
+        delta[t] = reward[t] + g_opts.gamma*baseline[t+1] - baseline[t]
     end
     local A_GAE={} --GAE advatage
     A_GAE[g_opts.max_steps] = delta[g_opts.max_steps]
@@ -59,27 +99,38 @@ local function speaker_train_batch(task_id)
         A_GAE[t] = delta[t] + g_opts.gamma*g_opts.lambda*A_GAE[t+1] 
     end
 
+    --prepar for target
+    --local A_target={}
+    --A_target[g_opts.max_steps] = reward[g_opts.max_steps] - baseline[g_opts.max_steps]
+    --for t=g_opts.max_steps-1, 1, -1 do 
+    --    A_target[t] = reward[t] + g_opts.gamma*baseline_target[t+1] - baseline[t]
+    --end
+
 
     --backward pass
+    local stat={}
     local grad_hid = torch.Tensor(#batch, g_opts.hidsz):fill(0)
     local grad_cell = torch.Tensor(#batch, g_opts.hidsz):fill(0)
 
     g_speaker_paramdx:zero()
     local reward_sum = torch.Tensor(#batch):zero() --running reward sum
     local norm = 0
+    local avg_err = 0
+    local avg_blcost = 1
     for t = g_opts.max_steps, 1, -1 do
         reward_sum:add(reward[t])
 
-        local speaker_out
+        local speaker_out, target_out
         if g_opts.lstm == false then
             speaker_out =g_speaker_model:forward(speaker.map[t])
-            ----  speaker_out  = {symbol_logprob, symbol_baseline}
         else
             speaker_out = g_speaker_model:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
         end
          ---- compute speaker_grad baseline
         local R = reward_sum:clone() --(#batch, )
         R:cmul(active[t]) --(#batch, )
+        stat.bl_cost = (stat.bl_cost or 0) + g_speaker_bl_loss:forward(baseline[t], R)
+        stat.bl_count = (stat.bl_count or 0) + active[t]:sum()
         local grad_baseline = g_speaker_bl_loss:backward(baseline[t], R):mul(g_opts.alpha):div(#batch) --(#batch, 1)
     
         ----  compute speaker_grad_action via GAE
@@ -87,7 +138,6 @@ local function speaker_train_batch(task_id)
         grad_symbol_logp:scatter(2, action[t], A_GAE[t]:view(-1,1):neg())
 
         ----  compute speaker_grad_action with entropy regularization
-        local num_batchs = (epoch_num-1)*g_opts.nbatches + batch_num
         local beta = g_opts.beta_start - num_batchs*g_opts.beta_start/g_opts.beta_end_batch
         beta = math.max(0,beta)
         local logp = speaker_out[1]
@@ -97,6 +147,35 @@ local function speaker_train_batch(task_id)
         entropy_grad:cmul(active[t]:view(-1,1):expandAs(entropy_grad):clone())
         grad_symbol_logp:add(entropy_grad)
         grad_symbol_logp:div(#batch)
+
+        
+        if SL==true then
+            --grad_baseline:zero()
+            grad_symbol_logp:zero()
+            local NLLceriterion = nn.ClassNLLCriterion()
+            local action_label = torch.LongTensor(#batch)
+            for i = 1, #batch do
+                local x = speaker.loc[t][i].x
+                local y = speaker.loc[t][i].y
+                if y > dst[i].y then 
+                    action_label[i] = 1
+                elseif y < dst[i].y then 
+                    action_label[i] = 2
+                elseif x > dst[i].x then 
+                    action_label[i] = 3
+                elseif x < dst[i].x then 
+                    action_label[i] = 4
+                else 
+                    action_label[i] = 1
+                end
+            end
+
+            local err = NLLceriterion:forward(speaker_out[1],action_label)
+            avg_err = avg_err +err
+            grad_symbol_logp = NLLceriterion:backward(speaker_out[1],action_label)
+            grad_symbol_logp:div(#batch)
+        end
+
         if g_opts.lstm == false then
             g_speaker_model:backward(speaker.map[t], {grad_symbol_logp, grad_baseline})
         else
@@ -108,7 +187,7 @@ local function speaker_train_batch(task_id)
     end
     print(g_speaker_paramdx:norm())
 
-    local stat={}
+    
     stat.reward = reward_sum:sum()
     stat.success = success:sum()
     stat.count = g_opts.batch_size
@@ -162,6 +241,12 @@ function speaker_train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
+        if stat.bl_count ~= nil and stat.bl_count > 0 then
+            stat.bl_cost = stat.bl_cost / stat.bl_count
+        else
+            stat.bl_cost = 0
+        end
+
         if stat.success > threashold/100.0 then
             g_opts.save = 'model_at'..threashold
             g_save_model()

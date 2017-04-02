@@ -46,6 +46,7 @@ local function build_lstm(input, prev_hid, prev_cell, hidsz)
     return hidstate, cellstate
 end
 
+--[[
 function g_build_speaker_model()
 	--input table
     local map = nn.Identity()() --(#batch, num_channels, map_height, map_width)
@@ -59,7 +60,7 @@ function g_build_speaker_model()
     end
 
     --apply conv-fc to map
-    g_opts.n_featuremaps = {3, 16, 64}
+    g_opts.n_featuremaps = {3, 64, 128}
     g_opts.filter_size =   {1, 1, 3}
     g_opts.filter_stride = {1, 1, 1}
     local n_featuremaps = g_opts.n_featuremaps
@@ -77,27 +78,31 @@ function g_build_speaker_model()
                                 filter_stride[2], filter_stride[2])(nonl1)
     local nonl2 = nonlin()(conv2)
 
-    local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
-    d = math.floor(d / 2)
+    --local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
+    --d = math.floor(d / 2)
+    local padding3 = nn.SpatialReflectionPadding(1, 1, 1, 1)(nonl2)
     
     local conv3 = nn.SpatialConvolution(n_featuremaps[2], n_featuremaps[3], 
                                 filter_size[3], filter_size[3], 
-                                filter_stride[3], filter_stride[3])(pool2)
+                                filter_stride[3], filter_stride[3])(padding3)
     local nonl3 = nonlin()(conv3)
-    d = d - 2 
+    d = d
 
     local out_dim = d * d * n_featuremaps[3]
     local fc_view = nn.View(out_dim):setNumInputDims(3)(nonl3)
     local map_embedding = nonlin()(nn.Linear(out_dim, g_opts.hidsz)(fc_view))
 
-    local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
-    local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
+    --local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
+    --local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
+    local action = nonlin()nn.Linear(g_opts.hidsz, g_opts.num_symbols)(map_embedding)
     local action_prob = nn.LogSoftMax()(action)
-    local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
-    local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl)
+    --local hid_bl = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
+    --local baseline = nn.Linear(g_opts.hidsz, 1)(hid_bl)
+    local baseline = nonlin()nn.Linear(g_opts.hidsz, 1)(map_embedding)
     local model = nn.gModule({map}, {action_prob, baseline})
     return model
 end
+--]]
 
 function g_build_speaker_model()
     --input table
@@ -112,9 +117,13 @@ function g_build_speaker_model()
     end
 
     --apply conv-fc to map
-    local n_featuremaps = {3, 16, 64}
-    local filter_size =   {1, 1, 3}
-    local filter_stride = {1, 1, 1}
+    g_opts.n_featuremaps = {3, 16, 16, 16}
+    g_opts.filter_size =   {1, 1, 3, 3}
+    g_opts. filter_stride = {1, 1, 1}
+    
+    local n_featuremaps = g_opts.n_featuremaps
+    local filter_size = g_opts.filter_size
+    local filter_stride = g_opts.filter_stride
     local d = g_opts.map_height
 
     local conv1 = nn.SpatialConvolution(num_channels, n_featuremaps[1], 
@@ -129,15 +138,24 @@ function g_build_speaker_model()
 
     --local pool2 = nn.SpatialMaxPooling(2, 2, 2, 2)(nonl2)
     --d = math.floor(d / 2)
+    local padding3 = nn.SpatialReflectionPadding(1, 1, 1, 1)(nonl2)
     
     local conv3 = nn.SpatialConvolution(n_featuremaps[2], n_featuremaps[3], 
                                 filter_size[3], filter_size[3], 
-                                filter_stride[3], filter_stride[3])(nonl2)
+                                filter_stride[3], filter_stride[3])(padding3)
     local nonl3 = nonlin()(conv3)
-    d = d - 2 
+    d = d
 
-    local out_dim = d * d * n_featuremaps[3]
-    local fc_view = nn.View(out_dim):setNumInputDims(3)(nonl3)
+    local padding4 = nn.SpatialReflectionPadding(1, 1, 1, 1)(nonl3)
+    
+    local conv4 = nn.SpatialConvolution(n_featuremaps[3], n_featuremaps[4], 
+                                filter_size[4], filter_size[4], 
+                                filter_stride[4], filter_stride[4])(padding4)
+    local nonl4 = nonlin()(conv4)
+    d = d
+
+    local out_dim = d * d * n_featuremaps[4]
+    local fc_view = nn.View(out_dim):setNumInputDims(3)(nonl4)
     local map_embedding = nonlin()(nn.Linear(out_dim, g_opts.hidsz)(fc_view))
 
     if g_opts.lstm == false then 
@@ -178,6 +196,10 @@ function g_init_speaker_model()
     if g_opts.init_std > 0 then
         g_speaker_paramx:normal(0, g_opts.init_std)
     end
+
+    g_speaker_model_target = g_build_speaker_model()
+    g_speaker_paramx_target, g_speaker_paramdx_target = g_speaker_model_target:getParameters()
+    g_speaker_paramx_target:copy(g_speaker_paramx_target)
     
     g_speaker_bl_loss = nn.MSECriterion()
 end

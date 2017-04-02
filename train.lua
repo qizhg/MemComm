@@ -214,7 +214,12 @@ function g_update_speaker_param(x, dx, task_id)
             g_optim_speaker_state[i] = {} 
         end
     end
+    
+    local num_batchs = (epoch_num-1)*g_opts.nbatches + batch_num
+    local lr = g_opts.lrate_start - num_batchs*g_opts.lrate_start/g_opts.lrate_end_batch
+    lr = math.max(0,lr)
     local config = {learningRate = g_opts.lrate}
+    
     if g_opts.optim == 'sgd' then
         config.momentum = g_opts.momentum
         config.weightDecay = g_opts.wdecay
