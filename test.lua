@@ -5,12 +5,12 @@ local function init()
     require('xlua')
 	torch.setdefaulttensortype('torch.FloatTensor')
 	paths.dofile('util.lua')
-	--paths.dofile('model/listener_model.lua')
+	paths.dofile('model/listener_model.lua')
 	paths.dofile('model/speaker_model.lua')
 	paths.dofile('train.lua')
     --paths.dofile('listener_train.lua')
-    paths.dofile('speaker_train.lua')
-    paths.dofile('run.lua')
+    --paths.dofile('speaker_train.lua')
+    --paths.dofile('run.lua')
 	paths.dofile('mazebase/init.lua')
 end
 
@@ -47,6 +47,7 @@ cmd:option('--nworker', 1, 'the number of threads used for training')
 cmd:option('--hidsz', 32, 'the size of the internal state vector')
 cmd:option('--nonlin', 'relu', 'non-linearity type: tanh | relu | none')
 cmd:option('--init_std', 0.1, 'STD of initial weights')
+cmd:option('--listener', true, '')
 cmd:option('--lstm', false, '')
 -- game parameters
 cmd:option('--max_steps', 10, 'force to end the game after this many steps')
@@ -103,14 +104,14 @@ end
 
 g_log = {}
 g_init_speaker_model()
-g_load_model()
+g_init_listener_model()
 
 --[[
 train(g_opts.epochs - #g_log)
 g_save_model()
 --]]
 
-speaker_train(g_opts.epochs - #g_log)
+train(g_opts.epochs - #g_log)
 
 
 

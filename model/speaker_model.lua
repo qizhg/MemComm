@@ -117,13 +117,13 @@ function g_build_speaker_model()
     end
 
     --apply conv-fc to map
-    g_opts.n_featuremaps = {3, 16, 16, 16}
-    g_opts.filter_size =   {1, 1, 3, 3}
-    g_opts. filter_stride = {1, 1, 1}
+    g_opts.speaker_n_featuremaps = {3, 16, 16, 16}
+    g_opts.speaker_filter_size =   {1, 1, 3, 3}
+    g_opts.speaker_filter_stride = {1, 1, 1}
     
-    local n_featuremaps = g_opts.n_featuremaps
-    local filter_size = g_opts.filter_size
-    local filter_stride = g_opts.filter_stride
+    local n_featuremaps = g_opts.speaker_n_featuremaps
+    local filter_size = g_opts.speaker_filter_size
+    local filter_stride = g_opts.speaker_filter_stride
     local d = g_opts.map_height
 
     local conv1 = nn.SpatialConvolution(num_channels, n_featuremaps[1], 
@@ -158,7 +158,13 @@ function g_build_speaker_model()
     local fc_view = nn.View(out_dim):setNumInputDims(3)(nonl4)
     local map_embedding = nonlin()(nn.Linear(out_dim, g_opts.hidsz)(fc_view))
 
-    if g_opts.lstm == false then 
+    if g_opts.listener == true then
+        local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
+        local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
+        local action_prob = nn.LogSoftMax()(action)
+        local model = nn.gModule({map}, {action_prob})
+        return model
+    elseif g_opts.lstm == false then 
         local hid_act = nonlin()(nn.Linear(g_opts.hidsz, g_opts.hidsz)(map_embedding))
         local action = nn.Linear(g_opts.hidsz, g_opts.num_symbols)(hid_act)
         local action_prob = nn.LogSoftMax()(action)

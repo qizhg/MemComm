@@ -16,10 +16,13 @@ end
 
 function train_batch(task_id)
 	local batch = batch_init(g_opts.batch_size, task_id)
+    local num_batchs = (epoch_num-1)*g_opts.nbatches + batch_num
+
 	
     -- record the episode
     local active = {}
     local reward = {}
+    local baseline = {}
 
 
     local speaker = {}
@@ -46,26 +49,19 @@ function train_batch(task_id)
 
     --play the game (forward pass)
     for t = 1, g_opts.max_steps do
-        --g_disp.image(batch[1].map:to_image())
         active[t] = batch_active(batch)
 
         --speaker
     	speaker.map[t] = batch_speaker_map(batch,active[t])
-        local speaker_out = g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
-        ----speaker_out  = {symbols_logprob, hidstate, cellstate}
-        speaker.hid[t] = speaker_out[2]:clone()
-        speaker.cell[t] = speaker_out[3]:clone()
-
-        --speaker-listener comm Gumbel
-        local Gumbel = build_Gumbel_SoftMax()
-        Gumbel_noise[t] = torch.rand(#batch, g_opts.num_symbols):log():neg():log():neg()
-        symbol_logp[t] = speaker_out[1]:clone()
-        listener.symbol[t] = Gumbel:forward({symbol_logp[t],Gumbel_noise[t]})
-        
+        local speaker_out = g_speaker_model:forward(speaker.map[t])
+        ----speaker_out  = action_prob
+        --comm
+        listener.symbol[t] = speaker_out:clone()
         --listener forward and act
-        listener.localmap[t] = batch_listener_localmap(batch,active[t])
+        listener.localmap[t] = batch_listener_localmap(batch, active[t])
         local listener_out = g_listener_model:forward({listener.localmap[t], listener.symbol[t],  listener.hid[t-1],listener.cell[t-1]})
         ----listener_out = {action_prob, baseline, hidstate, cellstate}
+        baseline[t] = listener_out[2]:clone():cmul(active[t])
         listener.hid[t] = listener_out[3]:clone()
         listener.cell[t] = listener_out[4]:clone()
         listener.action[t] = sample_multinomial(torch.exp(listener_out[1]))  --(#batch, 1)
@@ -76,9 +72,21 @@ function train_batch(task_id)
     end
     local success = batch_success(batch)
 
+    --prepare for GAE
+    local delta = {} --TD residual
+    delta[g_opts.max_steps] = reward[g_opts.max_steps] - baseline[g_opts.max_steps]
+    for t=1, g_opts.max_steps-1 do 
+        delta[t] = reward[t] + g_opts.gamma*baseline[t+1] - baseline[t]
+    end
+    local A_GAE={} --GAE advatage
+    A_GAE[g_opts.max_steps] = delta[g_opts.max_steps]
+    for t=g_opts.max_steps-1, 1, -1 do 
+        A_GAE[t] = delta[t] + g_opts.gamma*g_opts.lambda*A_GAE[t+1] 
+    end
+
     --backward pass
     g_listener_paramdx:zero()
-    g_speaker_paramdx[task_id]:zero()
+    g_speaker_paramdx:zero()
     local listener_grad_hid = torch.Tensor(#batch, listener_hidsz):fill(0)
     local listener_grad_cell = torch.Tensor(#batch, listener_hidsz):fill(0)
     local speaker_grad_hid = torch.Tensor(#batch, speaker_hidsz):fill(0)
@@ -94,18 +102,14 @@ function train_batch(task_id)
         ----  listener_out = {action_logprob, baseline, hidstate, cellstate}
         
         ---- compute listener_grad baseline
-        local listener_baseline = listener_out[2] --(#batch, 1)
         local R = reward_sum:clone() --(#batch, )
-        listener_baseline:cmul(active[t]) --(#batch, 1) 
         R:cmul(active[t]) --(#batch, )
-        local listener_grad_baseline = g_listener_bl_loss:backward(listener_baseline, R):mul(g_opts.alpha):div(#batch) --(#batch, 1)
+        local listener_grad_baseline = g_listener_bl_loss:backward(baseline[t], R):mul(g_opts.alpha):div(#batch) --(#batch, 1)
         
-        ----  compute listener_grad_action via REINFORCE
+        ----  compute listener_grad_action via GAE
         local listener_grad_action = torch.Tensor(#batch, g_opts.listener_nactions):zero()
-        local R_action = listener_baseline - R
-        listener_grad_action:scatter(2, listener.action[t], R_action)
+        listener_grad_action:scatter(2, listener.action[t], A_GAE[t]:view(-1,1):neg())
         ----  compute listener_grad_action with entropy regularization
-        local num_batchs = (episode_num-1)*g_opts.nbatches + batch_num
         local beta = g_opts.beta_start - num_batchs*g_opts.beta_start/g_opts.beta_end_batch
         beta = math.max(0,beta)
         local logp = listener_out[1]
@@ -122,22 +126,14 @@ function train_batch(task_id)
         
         listener_grad_hid = g_listener_modules['prev_hid'].gradInput:clone()
         listener_grad_cell = g_listener_modules['prev_cell'].gradInput:clone()
-        local grad_symbol = g_listener_modules['symbol'].gradInput:clone()
+        local grad_symbol_logp = g_listener_modules['symbol'].gradInput:clone()
 
-        --comm Gumbel SoftMax
-        local symbol_logp_node = nn.Identity()()
-        local Gumbel = build_Gumbel_SoftMax(symbol_logp_node)
-        Gumbel:forward({symbol_logp[t],Gumbel_noise[t]})
-        Gumbel:backward( {symbol_logp[t],Gumbel_noise[t]}, grad_symbol)
-        local grad_symbol_logp = symbol_logp_node.data.module.gradInput:clone()
+        --comm
 
         --speaker
-        g_speaker_model[task_id]:forward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]})
-        ----speaker_out  = {symbol_logprob, hidstate, cellstate}
-        g_speaker_model[task_id]:backward({speaker.map[t], speaker.hid[t-1],speaker.cell[t-1]},
-                                {grad_symbol_logp, speaker_grad_hid, speaker_grad_cell})
-        speaker_grad_hid = g_speaker_modules[task_id]['prev_hid'].gradInput:clone()
-        speaker_grad_cell = g_speaker_modules[task_id]['prev_cell'].gradInput:clone()
+        local speaker_out = g_speaker_model:forward(speaker.map[t])
+        ----speaker_out  = symbol_logprob
+        g_speaker_model:backward(speaker.map[t],grad_symbol_logp)
     end
 
     local stat={}
@@ -150,7 +146,7 @@ end
 function train_batch_thread(opts_orig, listener_paramx_orig, speaker_paramx_orig,task_id)
     g_opts = opts_orig
     g_listener_paramx:copy(listener_paramx_orig)
-    g_speaker_paramx[task_id]:copy(speaker_paramx_orig[task_id])
+    g_speaker_paramx:copy(speaker_paramx_orig)
     local stat = train_batch(task_id)
     return g_listener_paramdx, g_speaker_paramdx, stat
 end
@@ -160,19 +156,20 @@ end
 function train(N)
 	local threashold = 20
     for n = 1, N do
-        episode_num = n
+        epoch_num = n
         local stat = {} --for the epoch
 		for k = 1, g_opts.nbatches do
+            xlua.progress(k, g_opts.nbatches)
             batch_num = k
             local task_id = 1 --all game in a batch share the same task
             if g_opts.nworker > 1 then
                 g_listener_paramdx:zero()
-                g_speaker_paramdx[task_id]:zero()
+                g_speaker_paramdx:zero()
                 for w = 1, g_opts.nworker do
                     g_workers:addjob(w, train_batch_thread,
                         function(listener_paramdx_thread, speaker_paramdx_thread, s)
                             g_listener_paramdx:add(listener_paramdx_thread)
-                            g_speaker_paramdx[task_id]:add(speaker_paramdx_thread[task_id])
+                            g_speaker_paramdx:add(speaker_paramdx_thread)
                             merge_stat(stat, s)
                         end, g_opts, g_listener_paramx, g_speaker_paramx, task_id)
                 end
@@ -181,7 +178,7 @@ function train(N)
                 local s = train_batch(task_id)
                 merge_stat(stat, s)
             end
-            g_update_speaker_param(g_speaker_paramx[task_id], g_speaker_paramdx[task_id], task_id)
+            g_update_speaker_param(g_speaker_paramx, g_speaker_paramdx, task_id)
             g_update_listener_param(g_listener_paramx, g_listener_paramdx)
         end
         
@@ -192,8 +189,15 @@ function train(N)
                 stat['success' .. s] = stat['success' .. s] / v
             end
         end
+
+        if stat.bl_count ~= nil and stat.bl_count > 0 then
+            stat.bl_cost = stat.bl_cost / stat.bl_count
+        else
+            stat.bl_cost = 0
+        end
+
         if stat.success > threashold/100.0 then
-            g_opts.save = 'model_at'..threashold
+            g_opts.save = 'model_comm_at'..threashold
             g_save_model()
             threashold  = threashold + 10
         end
@@ -223,17 +227,17 @@ function g_update_speaker_param(x, dx, task_id)
     if g_opts.optim == 'sgd' then
         config.momentum = g_opts.momentum
         config.weightDecay = g_opts.wdecay
-        optim.sgd(f, x, config, g_optim_speaker_state[task_id])
+        optim.sgd(f, x, config, g_optim_speaker_state)
     elseif g_opts.optim == 'rmsprop' then
         config.alpha = g_opts.rmsprop_alpha
         config.epsilon = g_opts.rmsprob_eps
         config.weightDecay = g_opts.wdecay
-        optim.rmsprop(f, x, config, g_optim_speaker_state[task_id])
+        optim.rmsprop(f, x, config, g_optim_speaker_state)
     elseif g_opts.optim == 'adam' then
         config.beta1 = g_opts.adam_beta1
         config.beta2 = g_opts.adam_beta2
         config.epsilon = g_opts.adam_eps
-        optim.adam(f, x, config, g_optim_speaker_state[task_id])
+        optim.adam(f, x, config, g_optim_speaker_state)
     else
         error('wrong optim')
     end
